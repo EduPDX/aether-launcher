@@ -1,0 +1,41 @@
+{
+  "manifest": {
+    "version": 1,
+    "instance": {
+      "id": "inst1",
+      "name": "Servidor Ação & Emoção"
+    },
+    "profile": {
+      "id": "prof1",
+      "name": "Padrão",
+      "channel": "stable"
+    },
+    "generated_at": "2026-07-17T12:00:00+00:00",
+    "files": [
+      {
+        "path": "mods/alpha.jar",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 12345,
+        "action": "require"
+      },
+      {
+        "path": "config/série.toml",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 7,
+        "action": "optional"
+      }
+    ],
+    "managed": [
+      {
+        "dir": "mods",
+        "patterns": [
+          "*.jar"
+        ],
+        "recursive": true
+      }
+    ],
+    "total_size": 12352
+  },
+  "signature": "791bab843511de28fd70e8db381b172bebe37131a35204a49321fd7dbba3c29b5d271fff5d8f133c464633fd06883664a8a4a766898dbe1e3429f5ed7449160a",
+  "public_key": "4a7c3f8cb4a1b9d7e803f52f17fb0168664b0d57e733e8ab7fbe6c441c606936"
+}
