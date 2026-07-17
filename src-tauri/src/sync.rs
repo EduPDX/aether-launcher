@@ -59,6 +59,13 @@ pub struct ManifestMeta {
     pub channel: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct GameMeta {
+    pub minecraft: Option<String>,
+    pub loader: Option<String>,
+    pub loader_version: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Manifest {
     pub instance: ManifestMeta,
@@ -66,6 +73,7 @@ pub struct Manifest {
     pub files: Vec<ManifestFile>,
     pub managed: Vec<ManagedDir>,
     pub total_size: u64,
+    pub game: Option<GameMeta>,
 }
 
 /// Canonical bytes: serde_json's default map is a BTreeMap, so keys come
@@ -119,6 +127,9 @@ pub fn verify_and_parse(
             .get("total_size")
             .and_then(|v| v.as_u64())
             .unwrap_or(0),
+        game: manifest_value
+            .get("game")
+            .and_then(|g| serde_json::from_value(g.clone()).ok()),
     })
 }
 
@@ -287,6 +298,7 @@ mod tests {
                 recursive: true,
             }],
             total_size: 8,
+            game: None,
         }
     }
 

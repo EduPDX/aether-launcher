@@ -8,6 +8,7 @@ interface Config {
   server: string;
   profileId: string;
   dir: string;
+  username: string;
 }
 
 interface ServerInfo {
@@ -85,6 +86,7 @@ function SetupScreen({
   const [server, setServer] = useState(initial?.server ?? "");
   const [profileId, setProfileId] = useState(initial?.profileId ?? "");
   const [dir, setDir] = useState(initial?.dir ?? "");
+  const [username, setUsername] = useState(initial?.username ?? "");
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
 
@@ -101,7 +103,12 @@ function SetupScreen({
         server: server.trim(),
         profileId: profileId.trim(),
       });
-      onSave({ server: server.trim(), profileId: profileId.trim(), dir });
+      onSave({
+        server: server.trim(),
+        profileId: profileId.trim(),
+        dir,
+        username: username.trim(),
+      });
     } catch (e) {
       setError(String(e));
     } finally {
@@ -133,6 +140,14 @@ function SetupScreen({
           />
         </div>
         <div className="field">
+          <label>Nome do jogador</label>
+          <input
+            placeholder="Seu nick no jogo"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </div>
+        <div className="field">
           <label>Pasta do jogo</label>
           <div className="row">
             <input placeholder="C:\...\.minecraft" value={dir} readOnly />
@@ -142,7 +157,7 @@ function SetupScreen({
         {error && <p className="error">{error}</p>}
         <button
           className="primary big"
-          disabled={!server.trim() || !profileId.trim() || !dir || testing}
+          disabled={!server.trim() || !profileId.trim() || !dir || !username.trim() || testing}
           onClick={save}
         >
           {testing ? "Verificando…" : "Conectar"}
@@ -213,6 +228,62 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
     } finally {
       setBusy(false);
       setJavaPct(null);
+    }
+  }
+
+  const PLAY_STAGE: Record<string, string> = {
+    java: "Java",
+    meta: "Metadados",
+    client: "Client do Minecraft",
+    libraries: "Bibliotecas",
+    assets: "Assets",
+    forge: "Forge",
+    launch: "Preparando",
+    running: "Jogo iniciado!",
+  };
+
+  useEffect(() => {
+    const unlisten = listen<{ stage: string; detail: string; done: number; total: number }>(
+      "play-progress",
+      (event) => {
+        const p = event.payload;
+        const label = PLAY_STAGE[p.stage] ?? p.stage;
+        pushLog(
+          p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`,
+        );
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function playNow() {
+    setBusy(true);
+    setError("");
+    try {
+      pushLog("— sincronizando antes de jogar —");
+      await invoke<PlanSummary>("run_sync", {
+        server: config.server,
+        profileId: config.profileId,
+        dir: config.dir,
+        includeOptional: false,
+      });
+      pushLog("— preparando o jogo —");
+      const result = await invoke<{ version: string; pid: number }>("play", {
+        server: config.server,
+        profileId: config.profileId,
+        dir: config.dir,
+        username: config.username,
+        memoryMb: null,
+      });
+      pushLog(`Minecraft ${result.version} aberto (pid ${result.pid}). Bom jogo!`);
+    } catch (e) {
+      setError(String(e));
+      pushLog(`ERRO: ${e}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -309,8 +380,11 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
         </p>
 
         <div className="row">
-          <button className="primary big" disabled={busy} onClick={sync}>
-            {busy ? "Sincronizando…" : "Sincronizar agora"}
+          <button className="primary big" disabled={busy} onClick={playNow}>
+            {busy ? "Trabalhando…" : "▶ Jogar"}
+          </button>
+          <button disabled={busy} onClick={sync}>
+            Sincronizar
           </button>
           <button disabled={busy} onClick={check}>
             Verificar

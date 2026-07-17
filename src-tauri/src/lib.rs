@@ -1,4 +1,6 @@
 pub mod java;
+pub mod minecraft;
+mod play;
 pub mod sync;
 
 use tauri::Manager;
@@ -38,14 +40,14 @@ struct Progress {
     total: usize,
 }
 
-fn client() -> reqwest::Client {
+pub(crate) fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(concat!("aether-launcher/", env!("CARGO_PKG_VERSION")))
         .build()
         .expect("reqwest client")
 }
 
-async fn fetch_manifest(
+pub(crate) async fn fetch_manifest(
     http: &reqwest::Client,
     server: &str,
     profile_id: &str,
@@ -266,11 +268,11 @@ async fn run_sync(
     Ok(summarize(&plan))
 }
 
-fn app_data(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+pub(crate) fn app_data(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     app.path().app_data_dir().map_err(|e| e.to_string())
 }
 
-const JAVA_MAJOR_DEFAULT: u8 = 17; // Minecraft 1.20.x
+pub(crate) const JAVA_MAJOR_DEFAULT: u8 = 17; // Minecraft 1.20.x
 
 #[tauri::command]
 async fn java_status(app: tauri::AppHandle) -> Result<Option<java::JavaInfo>, String> {
@@ -308,7 +310,8 @@ pub fn run() {
             check_sync,
             run_sync,
             java_status,
-            install_java
+            install_java,
+            play::play
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
