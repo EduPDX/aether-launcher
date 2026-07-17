@@ -1,4 +1,7 @@
+pub mod java;
 pub mod sync;
+
+use tauri::Manager;
 
 use std::path::PathBuf;
 
@@ -263,12 +266,50 @@ async fn run_sync(
     Ok(summarize(&plan))
 }
 
+fn app_data(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_data_dir().map_err(|e| e.to_string())
+}
+
+const JAVA_MAJOR_DEFAULT: u8 = 17; // Minecraft 1.20.x
+
+#[tauri::command]
+async fn java_status(app: tauri::AppHandle) -> Result<Option<java::JavaInfo>, String> {
+    let data = app_data(&app)?;
+    Ok(tauri::async_runtime::spawn_blocking(move || {
+        java::managed_java(&data, JAVA_MAJOR_DEFAULT)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn install_java(app: tauri::AppHandle) -> Result<java::JavaInfo, String> {
+    let data = app_data(&app)?;
+    let emitter = app.clone();
+    let info = java::install(&data, JAVA_MAJOR_DEFAULT, move |done, total| {
+        let _ = emitter.emit(
+            "java-progress",
+            serde_json::json!({ "done": done, "total": total }),
+        );
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let _ = app.emit("java-progress", serde_json::json!({ "done": 1, "total": 1 }));
+    Ok(info)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![server_info, check_sync, run_sync])
+        .invoke_handler(tauri::generate_handler![
+            server_info,
+            check_sync,
+            run_sync,
+            java_status,
+            install_java
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

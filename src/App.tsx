@@ -34,6 +34,11 @@ interface Progress {
   total: number;
 }
 
+interface JavaInfo {
+  path: string;
+  version: string;
+}
+
 function loadConfig(): Config | null {
   const raw = localStorage.getItem("aether.launcher.config");
   return raw ? (JSON.parse(raw) as Config) : null;
@@ -154,6 +159,8 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
   const [progress, setProgress] = useState<Progress | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [java, setJava] = useState<JavaInfo | null | "loading">("loading");
+  const [javaPct, setJavaPct] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   function pushLog(line: string) {
@@ -176,6 +183,38 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
       clearInterval(timer);
     };
   }, [config]);
+
+  useEffect(() => {
+    invoke<JavaInfo | null>("java_status")
+      .then(setJava)
+      .catch(() => setJava(null));
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<{ done: number; total: number }>("java-progress", (event) => {
+      const { done, total } = event.payload;
+      setJavaPct(total > 0 ? Math.round((done / total) * 100) : null);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  async function installJava() {
+    setBusy(true);
+    setError("");
+    setJavaPct(0);
+    try {
+      const result = await invoke<JavaInfo>("install_java");
+      setJava(result);
+      pushLog(`Java instalado: ${result.version}`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+      setJavaPct(null);
+    }
+  }
 
   useEffect(() => {
     const unlisten = listen<Progress>("sync-progress", (event) => {
@@ -292,6 +331,25 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
         )}
 
         {plan?.synced && !busy && <p className="ok">✔ Tudo sincronizado com o servidor.</p>}
+
+        <p className="meta" style={{ marginBottom: 0 }}>
+          Java:{" "}
+          {java === "loading" ? (
+            "verificando…"
+          ) : java ? (
+            <span style={{ color: "var(--accent)" }}>{java.version}</span>
+          ) : javaPct !== null ? (
+            `baixando Temurin 17… ${javaPct}%`
+          ) : (
+            <>
+              não instalado{" "}
+              <button className="ghost" disabled={busy} onClick={installJava}>
+                Instalar Java 17
+              </button>
+            </>
+          )}
+        </p>
+
         {error && <p className="error">{error}</p>}
 
         <div className="log" ref={logRef}>
