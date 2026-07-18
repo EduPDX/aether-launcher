@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "launcher",
+  "productName": "Aether Launcher",
   "version": "0.1.0",
   "identifier": "com.aether.launcher",
   "build": {
@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "launcher",
-        "width": 800,
-        "height": 600
+        "title": "Aether Launcher",
+        "width": 1000,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 560,
+        "resizable": true
       }
     ],
     "security": {

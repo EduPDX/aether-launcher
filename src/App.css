@@ -71,6 +71,15 @@ body {
   margin: 0 auto;
 }
 
+/* Tela principal: card largo e alto para o log/erros caberem. */
+.card.main {
+  max-width: 900px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .field {
   margin-bottom: 12px;
 }
@@ -213,16 +222,30 @@ button.ghost:hover {
   font-size: 11.5px;
   color: var(--muted);
   padding: 10px;
-  height: 130px;
+  flex: 1;
+  min-height: 180px;
   overflow-y: auto;
+  overflow-x: auto;
   white-space: pre-wrap;
+  word-break: break-word;
   user-select: text;
 }
 
+/* Erros podem trazer o fim do log do jogo: precisa quebrar linha e rolar. */
 .error {
   color: var(--danger);
   font-size: 12px;
   margin-top: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: Consolas, monospace;
+  user-select: text;
 }
 
 .ok {

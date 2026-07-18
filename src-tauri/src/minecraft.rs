@@ -125,13 +125,27 @@ pub struct LibArtifact {
 }
 
 /// Maven coordinate without the version — used to dedupe (child wins).
+/// Dedup key: group/artifact **plus the classifier**. The classifier is
+/// essential — `lwjgl-3.3.1.jar` and `lwjgl-3.3.1-natives-windows.jar`
+/// share a group/artifact but are different artifacts; collapsing them
+/// silently drops the natives jars and the game dies with
+/// `UnsatisfiedLinkError: lwjgl.dll`.
 fn lib_key(path: &str) -> String {
     let parts: Vec<&str> = path.split('/').collect();
-    if parts.len() >= 3 {
-        parts[..parts.len() - 2].join("/")
-    } else {
-        path.to_string()
+    if parts.len() < 3 {
+        return path.to_string();
     }
+    let file = parts[parts.len() - 1];
+    let version = parts[parts.len() - 2];
+    let artifact = parts[parts.len() - 3];
+    let group_artifact = parts[..parts.len() - 2].join("/");
+
+    let stem = file.strip_suffix(".jar").unwrap_or(file);
+    let classifier = stem
+        .strip_prefix(&format!("{artifact}-{version}"))
+        .unwrap_or("")
+        .trim_start_matches('-');
+    format!("{group_artifact}|{classifier}")
 }
 
 pub fn collect_libraries(version: &Value) -> Vec<LibArtifact> {
@@ -456,6 +470,25 @@ mod tests {
         let game_args = merged["arguments"]["game"].as_array().unwrap();
         assert_eq!(game_args.first().unwrap(), "--username");
         assert_eq!(game_args.last().unwrap(), "47.2.0");
+    }
+
+    #[test]
+    fn natives_jar_is_not_deduped_against_its_base_jar() {
+        // Regressão: a chave sem classificador descartava o jar de natives,
+        // e o jogo morria com "Failed to locate library: lwjgl.dll".
+        let version = serde_json::json!({"libraries": [
+            {"downloads": {"artifact": {
+                "path": "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1.jar", "url": "https://x/a"}}},
+            {"downloads": {"artifact": {
+                "path": "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1-natives-windows.jar",
+                "url": "https://x/b"}}}
+        ]});
+        let libs = collect_libraries(&version);
+        assert_eq!(libs.len(), 2, "o jar de natives deve ser mantido");
+        assert!(libs.iter().any(|l| l.path.contains("natives-windows")));
+
+        let cp = classpath(&version, Path::new("/g"), Path::new("/g/client.jar"));
+        assert!(cp.contains("natives-windows"), "natives também vão para o classpath");
     }
 
     #[test]

@@ -360,7 +360,7 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
         <h1>Aether Launcher</h1>
       </div>
 
-      <div className="card" style={{ maxWidth: 560 }}>
+      <div className="card main">
         <div className="server-head">
           <span className="name">{info?.instance_name ?? "Conectando…"}</span>
           {info && <span className={`badge ${stateClass}`}>{STATE_LABEL[info.state] ?? info.state}</span>}
