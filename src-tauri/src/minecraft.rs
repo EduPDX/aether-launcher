@@ -307,6 +307,59 @@ pub async fn download_to(
     Ok(true)
 }
 
+// ---------------------------------------------------------------- natives --
+
+/// Extracts OS-specific native libraries (LWJGL `.dll`/`.so`/`.dylib`) from
+/// the `natives-*` jars into `natives_dir`, like the vanilla launcher does.
+/// Forge's module classloader can't extract these from the classpath, so
+/// the game needs them present on `java.library.path`.
+pub fn extract_natives(
+    version: &Value,
+    libraries_dir: &Path,
+    natives_dir: &Path,
+) -> Result<usize, McError> {
+    std::fs::create_dir_all(natives_dir)?;
+    let (os_tag, ext) = if cfg!(target_os = "windows") {
+        ("natives-windows", ".dll")
+    } else if cfg!(target_os = "macos") {
+        ("natives-macos", ".dylib")
+    } else {
+        ("natives-linux", ".so")
+    };
+    let mut count = 0;
+    for lib in version.get("libraries").and_then(|l| l.as_array()).into_iter().flatten() {
+        if !rules_allow(lib.get("rules")) {
+            continue;
+        }
+        let Some(path) = lib.pointer("/downloads/artifact/path").and_then(|p| p.as_str()) else {
+            continue;
+        };
+        if !path.contains(os_tag) {
+            continue;
+        }
+        let jar_path = libraries_dir.join(path);
+        if !jar_path.is_file() {
+            continue;
+        }
+        let file = std::fs::File::open(&jar_path)?;
+        let mut zip = zip::ZipArchive::new(file).map_err(|e| McError::BadData(e.to_string()))?;
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i).map_err(|e| McError::BadData(e.to_string()))?;
+            let name = entry.name().to_string();
+            if entry.is_dir() || name.starts_with("META-INF") || !name.ends_with(ext) {
+                continue;
+            }
+            let Some(file_name) = Path::new(&name).file_name() else {
+                continue;
+            };
+            let mut outfile = std::fs::File::create(natives_dir.join(file_name))?;
+            std::io::copy(&mut entry, &mut outfile)?;
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 // ------------------------------------------------------------------ forge --
 
 pub fn forge_version_id(mc: &str, forge: &str) -> String {

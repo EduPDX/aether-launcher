@@ -224,6 +224,9 @@ pub async fn play(
     let client_jar = game_dir.join("versions").join(&mc).join(format!("{mc}.jar"));
     let natives = game_dir.join("natives");
     std::fs::create_dir_all(&natives).map_err(|e| e.to_string())?;
+    // Extrai os natives do LWJGL (senão o jogo fecha na hora com o Forge).
+    minecraft::extract_natives(&version, &game_dir.join("libraries"), &natives)
+        .map_err(|e| e.to_string())?;
     let cp = minecraft::classpath(&version, &game_dir, &client_jar);
     let assets_root = game_dir.join("assets");
     let index_id = version
@@ -268,14 +271,52 @@ pub async fn play(
     args.push(version["mainClass"].as_str().ok_or("version json sem mainClass")?.to_string());
     args.extend(minecraft::resolve_arguments(version.pointer("/arguments/game"), &vars));
 
-    let javaw = java_exe.with_file_name(if cfg!(windows) { "javaw.exe" } else { "java" });
-    let launch_exe = if javaw.is_file() { javaw } else { java_exe };
-    let child = std::process::Command::new(&launch_exe)
-        .args(&args)
+    // Captura toda a saída do jogo num log (essencial para diagnóstico).
+    let log_dir = game_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).map_err(|e| e.to_string())?;
+    let log_path = log_dir.join("aether-game.log");
+    let out_file = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;
+    let err_file = out_file.try_clone().map_err(|e| e.to_string())?;
+
+    let mut cmd = std::process::Command::new(&java_exe);
+    cmd.args(&args)
         .current_dir(&game_dir)
-        .spawn()
-        .map_err(|e| format!("falha ao iniciar o jogo: {e}"))?;
+        .stdout(std::process::Stdio::from(out_file))
+        .stderr(std::process::Stdio::from(err_file));
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW — sem console, mas com log
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("falha ao iniciar o jogo: {e}"))?;
+    let pid = child.id();
+
+    // Se o jogo fechar nos primeiros segundos, foi um crash de inicialização:
+    // lê o fim do log e devolve o motivo real em vez de "Bom jogo!".
+    for _ in 0..14 {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        if let Ok(Some(status)) = child.try_wait() {
+            let tail = read_tail(&log_path, 45);
+            return Err(format!(
+                "O jogo fechou logo após abrir (código {}). Log em {}.\n\n--- fim do log do jogo ---\n{}",
+                status.code().map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
+                log_path.display(),
+                tail
+            ));
+        }
+    }
 
     emit(&app, "running", "jogo iniciado", 1, 1);
-    Ok(serde_json::json!({ "version": version_id, "pid": child.id() }))
+    Ok(serde_json::json!({ "version": version_id, "pid": pid }))
+}
+
+fn read_tail(path: &std::path::Path, lines: usize) -> String {
+    match std::fs::read_to_string(path) {
+        Ok(content) => {
+            let all: Vec<&str> = content.lines().collect();
+            let start = all.len().saturating_sub(lines);
+            all[start..].join("\n")
+        }
+        Err(_) => "(não foi possível ler o log do jogo)".into(),
+    }
 }
