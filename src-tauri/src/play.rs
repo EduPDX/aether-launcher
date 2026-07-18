@@ -221,7 +221,9 @@ pub async fn play(
     };
 
     emit(&app, "launch", "montando o jogo", 0, 0);
-    let client_jar = game_dir.join("versions").join(&mc).join(format!("{mc}.jar"));
+    // Com Forge o jar precisa levar o nome da versão lançada (ver ignoreList).
+    let client_jar =
+        minecraft::ensure_client_jar(&game_dir, &mc, &version_id).map_err(|e| e.to_string())?;
     let natives = game_dir.join("natives");
     std::fs::create_dir_all(&natives).map_err(|e| e.to_string())?;
     // Extrai os natives do LWJGL (senão o jogo fecha na hora com o Forge).
@@ -307,6 +309,38 @@ pub async fn play(
     }
 
     emit(&app, "running", "jogo iniciado", 1, 1);
+
+    // Passou da inicialização, mas o jogo ainda pode cair carregando mods.
+    // Acompanha em segundo plano e avisa com o fim do log se isso acontecer.
+    let app_bg = app.clone();
+    let log_bg = log_path.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut child = child;
+        for _ in 0..900 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let code = status.code().unwrap_or(-1);
+                    let detail = if code == 0 {
+                        "o jogo foi fechado".to_string()
+                    } else {
+                        format!(
+                            "o jogo fechou com erro (código {code}):\n{}",
+                            read_tail(&log_bg, 40)
+                        )
+                    };
+                    let _ = app_bg.emit(
+                        "play-progress",
+                        PlayProgress { stage: "closed".into(), detail, done: 0, total: 0 },
+                    );
+                    return;
+                }
+                Ok(None) => {}
+                Err(_) => return,
+            }
+        }
+    });
+
     Ok(serde_json::json!({ "version": version_id, "pid": pid }))
 }
 

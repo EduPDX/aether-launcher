@@ -321,6 +321,34 @@ pub async fn download_to(
     Ok(true)
 }
 
+/// Client jar to put on the classpath.
+///
+/// Forge's `-DignoreList` ends with `${version_name}.jar`, so when a mod
+/// loader is used the jar **must be named after the launched version id**
+/// (`1.20.1-forge-47.4.0.jar`). With the plain `1.20.1.jar` the JVM derives
+/// an automatic module (`_1._20._1`) that clashes with Forge's own
+/// `minecraft` module:
+/// `ResolutionException: Module minecraft contains package
+/// net.minecraft.obfuscate`. The vanilla launcher names the jar after the
+/// version id for exactly this reason.
+pub fn ensure_client_jar(
+    game_dir: &Path,
+    mc: &str,
+    version_id: &str,
+) -> std::io::Result<PathBuf> {
+    let vanilla = game_dir.join("versions").join(mc).join(format!("{mc}.jar"));
+    if version_id == mc {
+        return Ok(vanilla);
+    }
+    let dir = game_dir.join("versions").join(version_id);
+    std::fs::create_dir_all(&dir)?;
+    let dest = dir.join(format!("{version_id}.jar"));
+    if !dest.is_file() {
+        std::fs::copy(&vanilla, &dest)?;
+    }
+    Ok(dest)
+}
+
 // ---------------------------------------------------------------- natives --
 
 /// Extracts OS-specific native libraries (LWJGL `.dll`/`.so`/`.dylib`) from
@@ -470,6 +498,28 @@ mod tests {
         let game_args = merged["arguments"]["game"].as_array().unwrap();
         assert_eq!(game_args.first().unwrap(), "--username");
         assert_eq!(game_args.last().unwrap(), "47.2.0");
+    }
+
+    #[test]
+    fn client_jar_is_renamed_for_mod_loaders() {
+        // Regressão: com Forge, o jar precisa casar com ${version_name}.jar do
+        // ignoreList, senão vira módulo automático e dá ResolutionException.
+        let tmp = std::env::temp_dir().join(format!("aether-cj-{}", std::process::id()));
+        let vdir = tmp.join("versions").join("1.20.1");
+        std::fs::create_dir_all(&vdir).unwrap();
+        std::fs::write(vdir.join("1.20.1.jar"), b"fake-client").unwrap();
+
+        // vanilla: usa o jar original
+        let vanilla = ensure_client_jar(&tmp, "1.20.1", "1.20.1").unwrap();
+        assert!(vanilla.ends_with("1.20.1.jar"));
+
+        // forge: cria uma cópia com o nome da versão lançada
+        let forge = ensure_client_jar(&tmp, "1.20.1", "1.20.1-forge-47.4.0").unwrap();
+        assert!(forge.ends_with("1.20.1-forge-47.4.0.jar"));
+        assert!(forge.is_file());
+        assert_eq!(std::fs::read(&forge).unwrap(), b"fake-client");
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]

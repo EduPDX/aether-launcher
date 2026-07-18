@@ -240,6 +240,7 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
     forge: "Forge",
     launch: "Preparando",
     running: "Jogo iniciado!",
+    closed: "Jogo encerrado",
   };
 
   useEffect(() => {
@@ -251,6 +252,10 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
         pushLog(
           p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`,
         );
+        // O jogo caiu depois de abrir (ex.: erro de mod): mostra o motivo.
+        if (p.stage === "closed" && p.detail.includes("erro")) {
+          setError(`${label}: ${p.detail}`);
+        }
       },
     );
     return () => {
