@@ -33,6 +33,16 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Aether Platform",
+    "copyright": "© 2026 Aether Platform",
+    "category": "Game",
+    "shortDescription": "Launcher do Aether para servidores de jogos",
+    "longDescription": "Sincroniza mods, instala Java e Forge e abre o Minecraft já conectado ao servidor. Software de código aberto do projeto Aether Platform.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
