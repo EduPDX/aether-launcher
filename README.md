@@ -48,7 +48,7 @@ Na primeira vez o launcher pede quatro coisas:
 
 | Campo | De onde vem |
 |---|---|
-| Endereço do servidor | o dono passa (ex.: `http://192.168.20.57:8600`) |
+| Endereço do servidor | o dono passa (ex.: `http://192.168.1.10:8600`) |
 | Código do perfil | o dono copia do painel, na aba **Sync** |
 | Nome do jogador | o nick que aparece no jogo |
 | Pasta do jogo | normalmente `%APPDATA%\.minecraft` |

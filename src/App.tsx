@@ -126,7 +126,7 @@ function SetupScreen({
         <div className="field">
           <label>Endereço do servidor</label>
           <input
-            placeholder="http://192.168.20.57:8600"
+            placeholder="http://192.168.1.10:8600"
             value={server}
             onChange={(e) => setServer(e.target.value)}
           />
