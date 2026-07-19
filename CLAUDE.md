@@ -20,7 +20,7 @@ pnpm tauri dev               # roda o app com hot reload
 pnpm tauri build             # gera o executável em src-tauri/target/release
 
 cd src-tauri
-cargo test                   # testes do núcleo Rust (16 testes)
+cargo test                   # testes do núcleo Rust
 cargo test sync::            # só um módulo
 cargo clippy -- -D warnings  # lint
 cargo fmt
