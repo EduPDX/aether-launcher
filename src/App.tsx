@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
@@ -92,34 +94,79 @@ const PLAY_STAGE: Record<string, string> = {
   closed: "Jogo encerrado",
 };
 
+/** Verifica atualização do launcher no GitHub e oferece instalar. Silencioso em
+ *  dev ou sem rede — atualização é conveniência, não pode virar erro na cara. */
+function UpdateBanner() {
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [estado, setEstado] = useState<"idle" | "baixando" | "erro">("idle");
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    check()
+      .then((u) => {
+        if (u) setUpdate(u);
+      })
+      .catch(() => {
+        /* dev/sem rede: ignora */
+      });
+  }, []);
+
+  if (!update) return null;
+
+  async function atualizar() {
+    setEstado("baixando");
+    setErro("");
+    try {
+      await update!.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      setEstado("erro");
+      setErro(String(e instanceof Error ? e.message : e));
+    }
+  }
+
+  return (
+    <div className="update-banner">
+      <span>
+        Nova versão <b>{update.version}</b> disponível.
+        {estado === "erro" && <span className="update-err"> Falhou: {erro}</span>}
+      </span>
+      <button className="primary" disabled={estado === "baixando"} onClick={atualizar}>
+        {estado === "baixando" ? "Atualizando…" : "Atualizar agora"}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [config, setConfig] = useState<Config | null>(loadConfig);
   const [editing, setEditing] = useState(false);
 
-  if (!config || editing) {
-    return (
-      <SetupScreen
-        initial={config}
-        onCancel={config ? () => setEditing(false) : undefined}
-        onSave={(c) => {
-          saveConfig({ ...config, ...c });
-          setConfig((prev) => ({ ...prev, ...c }) as Config);
-          setEditing(false);
-        }}
-      />
-    );
-  }
-
   return (
-    <MainScreen
-      config={config}
-      onEditServer={() => setEditing(true)}
-      onUpdateConfig={(patch) => {
-        const next = { ...config, ...patch };
-        saveConfig(next);
-        setConfig(next);
-      }}
-    />
+    <>
+      <UpdateBanner />
+      {!config || editing ? (
+        <SetupScreen
+          initial={config}
+          onCancel={config ? () => setEditing(false) : undefined}
+          onSave={(c) => {
+            saveConfig({ ...(config ?? {}), ...c });
+            setConfig((prev) => ({ ...(prev ?? {}), ...c }) as Config);
+            setEditing(false);
+          }}
+        />
+      ) : (
+        <MainScreen
+          config={config}
+          onEditServer={() => setEditing(true)}
+          onUpdateConfig={(patch) => {
+            const next = { ...config, ...patch };
+            saveConfig(next);
+            setConfig(next);
+          }}
+        />
+      )}
+    </>
   );
 }
 
