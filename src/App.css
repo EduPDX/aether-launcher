@@ -454,3 +454,246 @@ button.seg.active {
   border-color: var(--text);
   box-shadow: 0 0 0 2px var(--bg) inset;
 }
+
+/* ---------------------------------------------------------- layout lateral -- */
+.layout {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 4px;
+}
+
+.brand-mini {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 16px;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+
+.brand-mini .logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--info));
+}
+
+.side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 10px 12px;
+}
+
+.side-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  filter: none;
+}
+
+.side-item.active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.side-item.active .side-ico {
+  color: var(--accent);
+}
+
+.side-ico {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.side-foot {
+  margin-top: auto;
+  padding: 12px 8px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.side-server {
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-user {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 28px 32px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.page h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-head h2 {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ servidores -- */
+.server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.server-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px 6px 6px;
+}
+
+.server-card.active {
+  border-color: var(--accent-dim);
+}
+
+.server-main {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  padding: 10px 12px;
+}
+
+.server-main:hover {
+  filter: none;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+
+.server-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.server-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- configurações -- */
+.setting {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.setting > label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 10px;
+}
+
+.setting input[type="text"],
+.setting .row input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+/* ---------------------------------------------------------------- perfil -- */
+.avatar-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.avatar-big {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--info));
+  color: #06130a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* ------------------------------------------------------------- em breve -- */
+.soon {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  color: var(--text);
+}
+
+.soon ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.soon code {
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
