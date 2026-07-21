@@ -9,6 +9,8 @@ interface Config {
   profileId: string;
   dir: string;
   username: string;
+  /** Memória máxima da JVM em MB. Ausente = padrão (4 GB). */
+  memoryMb?: number;
 }
 
 interface ServerInfo {
@@ -28,21 +30,37 @@ interface PlanSummary {
   synced: boolean;
 }
 
-interface Progress {
+interface SyncProgress {
   stage: "download" | "retire" | "done";
   path: string;
   done: number;
   total: number;
 }
 
-interface JavaInfo {
-  path: string;
-  version: string;
+interface PlayProgress {
+  stage: string;
+  detail: string;
+  done: number;
+  total: number;
 }
+
+/** O que a barra de progresso mostra agora — de sync ou de play, unificado. */
+interface Activity {
+  label: string;
+  detail: string;
+  done: number;
+  total: number;
+}
+
+const DEFAULT_MEMORY_MB = 4096;
 
 function loadConfig(): Config | null {
   const raw = localStorage.getItem("aether.launcher.config");
   return raw ? (JSON.parse(raw) as Config) : null;
+}
+
+function saveConfig(c: Config) {
+  localStorage.setItem("aether.launcher.config", JSON.stringify(c));
 }
 
 function formatBytes(n: number): string {
@@ -61,16 +79,45 @@ const STATE_LABEL: Record<string, string> = {
   unknown: "—",
 };
 
+// Rótulos amigáveis para cada etapa do preparo do jogo.
+const PLAY_STAGE: Record<string, string> = {
+  java: "Java",
+  meta: "Versão",
+  client: "Minecraft",
+  libraries: "Bibliotecas",
+  assets: "Recursos do jogo",
+  forge: "Forge",
+  launch: "Abrindo",
+  running: "Jogo iniciado",
+  closed: "Jogo encerrado",
+};
+
 export default function App() {
   const [config, setConfig] = useState<Config | null>(loadConfig);
-  return config ? (
-    <MainScreen config={config} onEdit={() => setConfig(null)} />
-  ) : (
-    <SetupScreen
-      initial={loadConfig()}
-      onSave={(c) => {
-        localStorage.setItem("aether.launcher.config", JSON.stringify(c));
-        setConfig(c);
+  const [editing, setEditing] = useState(false);
+
+  if (!config || editing) {
+    return (
+      <SetupScreen
+        initial={config}
+        onCancel={config ? () => setEditing(false) : undefined}
+        onSave={(c) => {
+          saveConfig({ ...config, ...c });
+          setConfig((prev) => ({ ...prev, ...c }) as Config);
+          setEditing(false);
+        }}
+      />
+    );
+  }
+
+  return (
+    <MainScreen
+      config={config}
+      onEditServer={() => setEditing(true)}
+      onUpdateConfig={(patch) => {
+        const next = { ...config, ...patch };
+        saveConfig(next);
+        setConfig(next);
       }}
     />
   );
@@ -79,9 +126,11 @@ export default function App() {
 function SetupScreen({
   initial,
   onSave,
+  onCancel,
 }: {
   initial: Config | null;
   onSave: (c: Config) => void;
+  onCancel?: () => void;
 }) {
   const [server, setServer] = useState(initial?.server ?? "");
   const [profileId, setProfileId] = useState(initial?.profileId ?? "");
@@ -103,12 +152,7 @@ function SetupScreen({
         server: server.trim(),
         profileId: profileId.trim(),
       });
-      onSave({
-        server: server.trim(),
-        profileId: profileId.trim(),
-        dir,
-        username: username.trim(),
-      });
+      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim() });
     } catch (e) {
       setError(String(e));
     } finally {
@@ -116,8 +160,10 @@ function SetupScreen({
     }
   }
 
+  const valido = server.trim() && profileId.trim() && dir && username.trim();
+
   return (
-    <div className="shell" style={{ justifyContent: "center" }}>
+    <div className="shell center">
       <div className="brand">
         <div className="logo" />
         <h1>Aether Launcher</h1>
@@ -155,40 +201,49 @@ function SetupScreen({
           </div>
         </div>
         {error && <p className="error">{error}</p>}
-        <button
-          className="primary big"
-          disabled={!server.trim() || !profileId.trim() || !dir || !username.trim() || testing}
-          onClick={save}
-        >
-          {testing ? "Verificando…" : "Conectar"}
-        </button>
+        <div className="row" style={{ marginTop: 4 }}>
+          {onCancel && (
+            <button onClick={onCancel} disabled={testing}>
+              Cancelar
+            </button>
+          )}
+          <button className="primary big" disabled={!valido || testing} onClick={save}>
+            {testing ? "Verificando…" : "Conectar"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) {
+function MainScreen({
+  config,
+  onEditServer,
+  onUpdateConfig,
+}: {
+  config: Config;
+  onEditServer: () => void;
+  onUpdateConfig: (patch: Partial<Config>) => void;
+}) {
   const [info, setInfo] = useState<ServerInfo | null>(null);
   const [plan, setPlan] = useState<PlanSummary | null>(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const [activity, setActivity] = useState<Activity | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [showLog, setShowLog] = useState(false);
   const [error, setError] = useState("");
-  const [java, setJava] = useState<JavaInfo | null | "loading">("loading");
-  const [javaPct, setJavaPct] = useState<number | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   function pushLog(line: string) {
-    setLog((prev) => [...prev.slice(-200), line]);
+    setLog((prev) => [...prev.slice(-300), line]);
   }
 
+  // Info do servidor, recarregada a cada 15s (status online/offline muda).
   useEffect(() => {
     let cancelled = false;
     const load = () =>
-      invoke<ServerInfo>("server_info", {
-        server: config.server,
-        profileId: config.profileId,
-      })
+      invoke<ServerInfo>("server_info", { server: config.server, profileId: config.profileId })
         .then((i) => !cancelled && setInfo(i))
         .catch((e) => !cancelled && setError(String(e)));
     load();
@@ -197,76 +252,45 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
       cancelled = true;
       clearInterval(timer);
     };
-  }, [config]);
+  }, [config.server, config.profileId]);
 
+  // Progresso do preparo do jogo: alimenta a barra, não só o log.
   useEffect(() => {
-    invoke<JavaInfo | null>("java_status")
-      .then(setJava)
-      .catch(() => setJava(null));
-  }, []);
-
-  useEffect(() => {
-    const unlisten = listen<{ done: number; total: number }>("java-progress", (event) => {
-      const { done, total } = event.payload;
-      setJavaPct(total > 0 ? Math.round((done / total) * 100) : null);
+    const unlisten = listen<PlayProgress>("play-progress", (event) => {
+      const p = event.payload;
+      const label = PLAY_STAGE[p.stage] ?? p.stage;
+      setActivity({ label, detail: p.detail, done: p.done, total: p.total });
+      pushLog(p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`);
+      if (p.stage === "closed" && p.detail.includes("erro")) setError(`${label}: ${p.detail}`);
     });
     return () => {
       unlisten.then((fn) => fn());
     };
   }, []);
 
-  async function installJava() {
-    setBusy(true);
-    setError("");
-    setJavaPct(0);
-    try {
-      const result = await invoke<JavaInfo>("install_java");
-      setJava(result);
-      pushLog(`Java instalado: ${result.version}`);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-      setJavaPct(null);
-    }
-  }
-
-  const PLAY_STAGE: Record<string, string> = {
-    java: "Java",
-    meta: "Metadados",
-    client: "Client do Minecraft",
-    libraries: "Bibliotecas",
-    assets: "Assets",
-    forge: "Forge",
-    launch: "Preparando",
-    running: "Jogo iniciado!",
-    closed: "Jogo encerrado",
-  };
-
+  // Progresso da sincronização de arquivos.
   useEffect(() => {
-    const unlisten = listen<{ stage: string; detail: string; done: number; total: number }>(
-      "play-progress",
-      (event) => {
-        const p = event.payload;
-        const label = PLAY_STAGE[p.stage] ?? p.stage;
-        pushLog(
-          p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`,
-        );
-        // O jogo caiu depois de abrir (ex.: erro de mod): mostra o motivo.
-        if (p.stage === "closed" && p.detail.includes("erro")) {
-          setError(`${label}: ${p.detail}`);
-        }
-      },
-    );
+    const unlisten = listen<SyncProgress>("sync-progress", (event) => {
+      const p = event.payload;
+      const label = p.stage === "retire" ? "Removendo" : p.stage === "done" ? "Sincronizado" : "Baixando";
+      setActivity({ label, detail: p.path, done: p.done, total: p.total });
+      if (p.stage === "download") pushLog(`baixado  ${p.path}`);
+      if (p.stage === "retire") pushLog(`removido ${p.path}`);
+      if (p.stage === "done") pushLog("— sincronização concluída —");
+    });
     return () => {
       unlisten.then((fn) => fn());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }, [log, showLog]);
 
   async function playNow() {
     setBusy(true);
     setError("");
+    setActivity({ label: "Preparando", detail: "sincronizando", done: 0, total: 0 });
     try {
       pushLog("— sincronizando antes de jogar —");
       await invoke<PlanSummary>("run_sync", {
@@ -281,33 +305,18 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
         profileId: config.profileId,
         dir: config.dir,
         username: config.username,
-        memoryMb: null,
+        memoryMb: config.memoryMb ?? null,
       });
       pushLog(`Minecraft ${result.version} aberto (pid ${result.pid}). Bom jogo!`);
+      setActivity({ label: "Jogo iniciado", detail: "bom jogo!", done: 1, total: 1 });
     } catch (e) {
       setError(String(e));
       pushLog(`ERRO: ${e}`);
+      setActivity(null);
     } finally {
       setBusy(false);
     }
   }
-
-  useEffect(() => {
-    const unlisten = listen<Progress>("sync-progress", (event) => {
-      const p = event.payload;
-      setProgress(p);
-      if (p.stage === "download") pushLog(`baixado  ${p.path}`);
-      if (p.stage === "retire") pushLog(`removido ${p.path}`);
-      if (p.stage === "done") pushLog("— sincronização concluída —");
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log]);
 
   async function check() {
     setBusy(true);
@@ -334,7 +343,7 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
   async function sync() {
     setBusy(true);
     setError("");
-    setProgress(null);
+    setActivity({ label: "Sincronizando", detail: "", done: 0, total: 0 });
     try {
       const result = await invoke<PlanSummary>("run_sync", {
         server: config.server,
@@ -346,15 +355,13 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
     } catch (e) {
       setError(String(e));
       pushLog(`ERRO: ${e}`);
+      setActivity(null);
     } finally {
       setBusy(false);
     }
   }
 
-  const pct =
-    progress && progress.total > 0
-      ? Math.round((progress.done / progress.total) * 100)
-      : null;
+  const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
   const stateClass =
     info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
 
@@ -370,8 +377,9 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
           <span className="name">{info?.instance_name ?? "Conectando…"}</span>
           {info && <span className={`badge ${stateClass}`}>{STATE_LABEL[info.state] ?? info.state}</span>}
           {info && <span className="badge">{info.channel}</span>}
-          <span style={{ marginLeft: "auto" }}>
-            <button className="ghost" onClick={onEdit} title="Configurações">
+          <span className="head-right">
+            <span className="who">{config.username}</span>
+            <button className="ghost" onClick={() => setShowSettings(true)} title="Ajustes">
               ⚙
             </button>
           </span>
@@ -380,14 +388,12 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
           {info
             ? `Perfil "${info.profile_name}" · ${info.files} arquivos · ${formatBytes(info.total_size)}`
             : config.server}
-          <br />
-          Pasta: {config.dir}
         </p>
 
-        <div className="row">
-          <button className="primary big" disabled={busy} onClick={playNow}>
-            {busy ? "Trabalhando…" : "▶ Jogar"}
-          </button>
+        <button className="primary play" disabled={busy} onClick={playNow}>
+          {busy ? "Trabalhando…" : "▶  Jogar"}
+        </button>
+        <div className="row" style={{ marginTop: 8 }}>
           <button disabled={busy} onClick={sync}>
             Sincronizar
           </button>
@@ -396,43 +402,130 @@ function MainScreen({ config, onEdit }: { config: Config; onEdit: () => void }) 
           </button>
         </div>
 
-        {pct !== null && (
-          <>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${pct}%` }} />
+        {activity && (
+          <div className="activity">
+            <div className="activity-head">
+              <span className="activity-label">{activity.label}</span>
+              <span className="activity-detail">{activity.detail}</span>
+              {pct !== null && <span className="activity-pct">{pct}%</span>}
             </div>
-            <p className="meta" style={{ margin: 0 }}>
-              {progress?.stage === "done"
-                ? "Concluído."
-                : `${progress?.done}/${progress?.total} arquivos…`}
-            </p>
-          </>
+            <div className="progress-track">
+              <div
+                className={`progress-fill ${pct === null ? "indeterminate" : ""}`}
+                style={pct !== null ? { width: `${pct}%` } : undefined}
+              />
+            </div>
+          </div>
         )}
 
-        {plan?.synced && !busy && <p className="ok">✔ Tudo sincronizado com o servidor.</p>}
-
-        <p className="meta" style={{ marginBottom: 0 }}>
-          Java:{" "}
-          {java === "loading" ? (
-            "verificando…"
-          ) : java ? (
-            <span style={{ color: "var(--accent)" }}>{java.version}</span>
-          ) : javaPct !== null ? (
-            `baixando Temurin 17… ${javaPct}%`
-          ) : (
-            <>
-              não instalado{" "}
-              <button className="ghost" disabled={busy} onClick={installJava}>
-                Instalar Java 17
-              </button>
-            </>
-          )}
-        </p>
+        {plan?.synced && !busy && !activity && (
+          <p className="ok">✔ Tudo sincronizado com o servidor.</p>
+        )}
 
         {error && <p className="error">{error}</p>}
 
-        <div className="log" ref={logRef}>
-          {log.join("\n") || "Pronto. Clique em Sincronizar para espelhar os mods do servidor."}
+        <div className="log-toggle">
+          <button className="ghost" onClick={() => setShowLog((v) => !v)}>
+            {showLog ? "▾ Ocultar detalhes" : "▸ Mostrar detalhes"}
+          </button>
+        </div>
+        {showLog && (
+          <div className="log" ref={logRef}>
+            {log.join("\n") || "Pronto. Clique em Jogar para sincronizar e abrir o jogo."}
+          </div>
+        )}
+      </div>
+
+      {showSettings && (
+        <SettingsModal
+          config={config}
+          onClose={() => setShowSettings(false)}
+          onUpdate={onUpdateConfig}
+          onEditServer={onEditServer}
+        />
+      )}
+    </div>
+  );
+}
+
+function SettingsModal({
+  config,
+  onClose,
+  onUpdate,
+  onEditServer,
+}: {
+  config: Config;
+  onClose: () => void;
+  onUpdate: (patch: Partial<Config>) => void;
+  onEditServer: () => void;
+}) {
+  const [memoryGb, setMemoryGb] = useState((config.memoryMb ?? DEFAULT_MEMORY_MB) / 1024);
+  const [username, setUsername] = useState(config.username);
+  const [dir, setDir] = useState(config.dir);
+
+  async function pickDir() {
+    const chosen = await open({ directory: true, title: "Pasta do Minecraft (.minecraft)" });
+    if (typeof chosen === "string") setDir(chosen);
+  }
+
+  function salvar() {
+    onUpdate({
+      memoryMb: Math.round(memoryGb * 1024),
+      username: username.trim() || config.username,
+      dir: dir || config.dir,
+    });
+    onClose();
+  }
+
+  return (
+    <div className="overlay" onClick={onClose} role="presentation">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Ajustes</h2>
+
+        <div className="field">
+          <label>Memória do jogo — {memoryGb.toFixed(1)} GB</label>
+          <input
+            type="range"
+            min={1}
+            max={16}
+            step={0.5}
+            value={memoryGb}
+            onChange={(e) => setMemoryGb(Number(e.target.value))}
+          />
+          <p className="hint">
+            Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.
+          </p>
+        </div>
+
+        <div className="field">
+          <label>Nome do jogador</label>
+          <input value={username} onChange={(e) => setUsername(e.target.value)} />
+        </div>
+
+        <div className="field">
+          <label>Pasta do jogo</label>
+          <div className="row">
+            <input value={dir} readOnly />
+            <button onClick={pickDir}>Escolher…</button>
+          </div>
+        </div>
+
+        <button
+          className="ghost"
+          style={{ marginTop: 4 }}
+          onClick={() => {
+            onClose();
+            onEditServer();
+          }}
+        >
+          Trocar de servidor / perfil…
+        </button>
+
+        <div className="row" style={{ marginTop: 16 }}>
+          <button onClick={onClose}>Cancelar</button>
+          <button className="primary big" onClick={salvar}>
+            Salvar
+          </button>
         </div>
       </div>
     </div>
