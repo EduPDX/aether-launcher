@@ -1,0 +1,5 @@
+# O pnpm 11 bloqueia scripts de instalação por segurança. O esbuild precisa do
+# seu para baixar o binário nativo — sem isso o build do frontend (vite) não
+# roda. Liberamos só o esbuild.
+allowBuilds:
+  esbuild: true
