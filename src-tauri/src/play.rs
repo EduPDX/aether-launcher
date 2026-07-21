@@ -181,19 +181,7 @@ pub async fn play(
     }
     let game_dir = PathBuf::from(&dir);
     let http = client();
-
-    emit(&app, "java", "verificando Java", 0, 0);
     let data = app_data(&app)?;
-    let java_info = match java::managed_java(&data, JAVA_MAJOR_DEFAULT) {
-        Some(info) => info,
-        None => {
-            emit(&app, "java", "baixando Java 17", 0, 0);
-            java::install(&data, JAVA_MAJOR_DEFAULT, |_, _| {})
-                .await
-                .map_err(|e| e.to_string())?
-        }
-    };
-    let java_exe = PathBuf::from(&java_info.path);
 
     let (_, manifest_meta) = fetch_manifest(&http, &server, &profile_id).await?;
     let game = manifest_meta.game.clone().ok_or(
@@ -202,6 +190,27 @@ pub async fn play(
     let mc = game.minecraft.ok_or("manifesto sem versão do Minecraft")?;
 
     let vanilla = ensure_vanilla(&app, &http, &game_dir, &mc).await?;
+
+    // Cada versão do Minecraft exige um Java próprio (1.20.1 → 17, 1.21+ → 21,
+    // as mais novas → 25). O manifesto da Mojang diz qual em javaVersion; sem ler
+    // isso o launcher ficava preso no 17 e as versões novas não abriam — era o que
+    // barrava o upgrade de versão pelo servidor.
+    let java_major = vanilla
+        .pointer("/javaVersion/majorVersion")
+        .and_then(|v| v.as_u64())
+        .map(|m| m as u8)
+        .unwrap_or(JAVA_MAJOR_DEFAULT);
+    emit(&app, "java", &format!("verificando Java {java_major}"), 0, 0);
+    let java_info = match java::managed_java(&data, java_major) {
+        Some(info) => info,
+        None => {
+            emit(&app, "java", &format!("baixando Java {java_major}"), 0, 0);
+            java::install(&data, java_major, |_, _| {})
+                .await
+                .map_err(|e| e.to_string())?
+        }
+    };
+    let java_exe = PathBuf::from(&java_info.path);
     let (version, version_id) = match (game.loader.as_deref(), game.loader_version) {
         (Some("forge"), Some(forge)) => {
             let fjson = ensure_forge(&app, &http, &game_dir, &java_exe, &mc, &forge).await?;
