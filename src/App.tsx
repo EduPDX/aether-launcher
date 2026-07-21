@@ -72,6 +72,39 @@ function formatBytes(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
+// --------------------------------------------------------------------- tema --
+type ThemeMode = "dark" | "light";
+interface Theme {
+  mode: ThemeMode;
+  accent: string;
+}
+
+const ACCENTS: { id: string; label: string }[] = [
+  { id: "#22c55e", label: "Verde" },
+  { id: "#3b82f6", label: "Azul" },
+  { id: "#a855f7", label: "Roxo" },
+  { id: "#f97316", label: "Laranja" },
+  { id: "#ec4899", label: "Rosa" },
+  { id: "#eab308", label: "Âmbar" },
+];
+
+function loadTheme(): Theme {
+  const padrao: Theme = { mode: "dark", accent: "#22c55e" };
+  try {
+    return { ...padrao, ...JSON.parse(localStorage.getItem("aether.launcher.theme") ?? "{}") };
+  } catch {
+    return padrao;
+  }
+}
+
+function applyTheme(t: Theme) {
+  const r = document.documentElement;
+  r.dataset.theme = t.mode;
+  // Sobrepõe as duas variáveis de destaque com a cor escolhida.
+  r.style.setProperty("--accent", t.accent);
+  r.style.setProperty("--accent-dim", t.accent);
+}
+
 const STATE_LABEL: Record<string, string> = {
   running: "online",
   stopped: "offline",
@@ -141,6 +174,12 @@ function UpdateBanner() {
 export default function App() {
   const [config, setConfig] = useState<Config | null>(loadConfig);
   const [editing, setEditing] = useState(false);
+  const [theme, setTheme] = useState<Theme>(loadTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem("aether.launcher.theme", JSON.stringify(theme));
+  }, [theme]);
 
   return (
     <>
@@ -158,6 +197,8 @@ export default function App() {
       ) : (
         <MainScreen
           config={config}
+          theme={theme}
+          onTheme={setTheme}
           onEditServer={() => setEditing(true)}
           onUpdateConfig={(patch) => {
             const next = { ...config, ...patch };
@@ -265,10 +306,14 @@ function SetupScreen({
 
 function MainScreen({
   config,
+  theme,
+  onTheme,
   onEditServer,
   onUpdateConfig,
 }: {
   config: Config;
+  theme: Theme;
+  onTheme: (t: Theme) => void;
   onEditServer: () => void;
   onUpdateConfig: (patch: Partial<Config>) => void;
 }) {
@@ -486,6 +531,8 @@ function MainScreen({
       {showSettings && (
         <SettingsModal
           config={config}
+          theme={theme}
+          onTheme={onTheme}
           onClose={() => setShowSettings(false)}
           onUpdate={onUpdateConfig}
           onEditServer={onEditServer}
@@ -497,11 +544,15 @@ function MainScreen({
 
 function SettingsModal({
   config,
+  theme,
+  onTheme,
   onClose,
   onUpdate,
   onEditServer,
 }: {
   config: Config;
+  theme: Theme;
+  onTheme: (t: Theme) => void;
   onClose: () => void;
   onUpdate: (patch: Partial<Config>) => void;
   onEditServer: () => void;
@@ -528,6 +579,35 @@ function SettingsModal({
     <div className="overlay" onClick={onClose} role="presentation">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Ajustes</h2>
+
+        <div className="field">
+          <label>Tema</label>
+          <div className="theme-modes">
+            <button
+              className={theme.mode === "dark" ? "seg active" : "seg"}
+              onClick={() => onTheme({ ...theme, mode: "dark" })}
+            >
+              🌙 Escuro
+            </button>
+            <button
+              className={theme.mode === "light" ? "seg active" : "seg"}
+              onClick={() => onTheme({ ...theme, mode: "light" })}
+            >
+              ☀ Claro
+            </button>
+          </div>
+          <div className="swatches">
+            {ACCENTS.map((a) => (
+              <button
+                key={a.id}
+                title={a.label}
+                className={`swatch ${theme.accent === a.id ? "active" : ""}`}
+                style={{ background: a.id }}
+                onClick={() => onTheme({ ...theme, accent: a.id })}
+              />
+            ))}
+          </div>
+        </div>
 
         <div className="field">
           <label>Memória do jogo — {memoryGb.toFixed(1)} GB</label>
