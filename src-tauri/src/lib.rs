@@ -1,3 +1,4 @@
+pub mod content;
 pub mod files;
 pub mod java;
 pub mod minecraft;
@@ -351,6 +352,11 @@ pub fn run() {
             files::fs_trash_purge,
             files::fs_trash_empty,
             files::fs_reveal,
+            content::content_context,
+            content::modrinth_search,
+            content::content_installed,
+            content::modrinth_install,
+            content::content_remove,
             system_stats
         ])
         .run(tauri::generate_context!())

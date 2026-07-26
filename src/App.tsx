@@ -446,7 +446,7 @@ function Shell(props: {
           <div className="nav-group">
             <span className="eyebrow">Servidor</span>
             <NavItem icon="dashboard" label="Dashboard" on={section === "dashboard"} onClick={() => props.onSection("dashboard")} />
-            <NavItem icon="content" label="Conteúdo" soon on={section === "content"} onClick={() => props.onSection("content")} />
+            <NavItem icon="content" label="Conteúdo" on={section === "content"} onClick={() => props.onSection("content")} />
             <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
             <NavItem icon="map" label="Mapa" soon on={section === "map"} onClick={() => props.onSection("map")} />
           </div>
@@ -470,7 +470,7 @@ function Shell(props: {
         <main className="main">
           <UpdateBanner />
           {section === "dashboard" && <DashboardSection server={current} engine={engine} stats={stats} onConfig={() => props.onSection("settings")} />}
-          {section === "content" && <SoonSection title="Conteúdo" lead="Instalar shaders e texturas do Modrinth — do lado do cliente, sem afetar o servidor." items={["buscar e instalar shaders em shaderpacks/", "buscar e instalar texturas em resourcepacks/", "compatibilidade com a versão do servidor"]} />}
+          {section === "content" && <ContentSection server={current} />}
           {section === "files" && <FilesSection server={current} />}
           {section === "map" && <SoonSection title="Mapa" lead="Ver o mundo e as construções direto no launcher." items={["mapa ao vivo via BlueMap no servidor (preferencial)", "ou ler o JourneyMap do seu PC (o que você explorou)", "opcional, ligado por servidor"]} />}
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
@@ -1023,6 +1023,155 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================================== Conteúdo ====
+interface ModItem { project_id: string; slug: string; title: string; description: string; author: string; downloads: number; icon_url: string | null; categories: string[]; }
+interface ContentProgress { name: string; done: number; total: number; }
+type ContentKind = "shader" | "resourcepack";
+
+function fmtDownloads(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)}k`;
+  return String(n);
+}
+function installedKey(dir: string, kind: string) { return `aether.launcher.content.${dir}::${kind}`; }
+function loadInstalled(dir: string, kind: string): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(installedKey(dir, kind)) ?? "{}"); } catch { return {}; }
+}
+
+function ContentSection({ server }: { server: Server }) {
+  const [kind, setKind] = useState<ContentKind>("shader");
+  const [query, setQuery] = useState("");
+  const [gameVersion, setGameVersion] = useState<string | null>(null);
+  const [useCompat, setUseCompat] = useState(true);
+  const [results, setResults] = useState<ModItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [installed, setInstalled] = useState<Record<string, string>>(() => loadInstalled(server.dir, "shader"));
+  const [installing, setInstalling] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ContentProgress | null>(null);
+
+  useEffect(() => {
+    invoke<{ minecraft: string | null }>("content_context", { server: server.server, profileId: server.profileId })
+      .then((c) => setGameVersion(c.minecraft))
+      .catch(() => setGameVersion(null));
+  }, [server.server, server.profileId]);
+
+  useEffect(() => { setInstalled(loadInstalled(server.dir, kind)); }, [server.dir, kind]);
+
+  useEffect(() => {
+    const un = listen<ContentProgress>("content-progress", (e) => setProgress(e.payload));
+    return () => { un.then((fn) => fn()); };
+  }, []);
+
+  async function doSearch() {
+    setLoading(true); setError("");
+    try {
+      const rows = await invoke<ModItem[]>("modrinth_search", { kind, query, gameVersion: useCompat ? gameVersion : null });
+      setResults(rows);
+    } catch (e) { setError(String(e)); } finally { setLoading(false); }
+  }
+
+  // Busca quando troca de aba, alterna compatibilidade ou a versão do servidor carrega.
+  useEffect(() => { doSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [kind, useCompat, gameVersion]);
+
+  async function install(item: ModItem) {
+    setInstalling(item.project_id); setError(""); setProgress(null);
+    try {
+      const filename = await invoke<string>("modrinth_install", { projectId: item.project_id, kind, gameVersion: useCompat ? gameVersion : null, dir: server.dir });
+      const next = { ...installed, [item.project_id]: filename };
+      setInstalled(next); localStorage.setItem(installedKey(server.dir, kind), JSON.stringify(next));
+    } catch (e) { setError(String(e)); } finally { setInstalling(null); setProgress(null); }
+  }
+
+  async function remove(item: ModItem) {
+    const fname = installed[item.project_id];
+    if (!fname) return;
+    setInstalling(item.project_id); setError("");
+    try {
+      await invoke("content_remove", { kind, filename: fname, dir: server.dir });
+      const next = { ...installed }; delete next[item.project_id];
+      setInstalled(next); localStorage.setItem(installedKey(server.dir, kind), JSON.stringify(next));
+    } catch (e) { setError(String(e)); } finally { setInstalling(null); }
+  }
+
+  const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
+  const isShader = kind === "shader";
+
+  return (
+    <div className="page">
+      <h2>Conteúdo</h2>
+      <div className="meta">Shaders e texturas do Modrinth — instalam do lado do cliente, sem afetar o servidor.</div>
+
+      <div className="content-tabs">
+        <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => setKind("shader")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></svg>Shaders
+        </button>
+        <button className={`content-tab ${!isShader ? "on" : ""}`} onClick={() => setKind("resourcepack")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18" /></svg>Texturas
+        </button>
+      </div>
+
+      <div className="c-bar">
+        <div className="c-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
+        </div>
+        {gameVersion && (
+          <label className="c-compat"><input type="checkbox" checked={useCompat} onChange={(e) => setUseCompat(e.target.checked)} />só compatível com {gameVersion}</label>
+        )}
+        <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {installing && (
+        <div className="c-progress">
+          <div className="cp-head"><span className="cp-name">Instalando {progress?.name ?? "…"}</span>{pct !== null && <span className="cp-pct">{pct}%</span>}</div>
+          <div className="progress-track"><div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
+        </div>
+      )}
+
+      {loading && results.length === 0 ? (
+        <div className="c-empty">Buscando…</div>
+      ) : results.length === 0 ? (
+        <div className="c-empty">Nada encontrado{useCompat && gameVersion ? ` para ${gameVersion}` : ""}.</div>
+      ) : (
+        <div className="mod-grid">
+          {results.map((item) => {
+            const isInstalled = !!installed[item.project_id];
+            const busyThis = installing === item.project_id;
+            return (
+              <div key={item.project_id} className="mod-card">
+                {item.icon_url ? <img className="mod-ic" src={item.icon_url} alt="" /> : <div className="mod-ic">{isShader ? "🌄" : "🎨"}</div>}
+                <div className="mod-body">
+                  <h4 title={item.title}>{item.title}</h4>
+                  <div className="mod-by">por {item.author}</div>
+                  <p className="mod-desc">{item.description}</p>
+                  <div className="mod-foot">
+                    <span className="mod-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" /></svg>{fmtDownloads(item.downloads)}</span>
+                    <div className="mod-act">
+                      {isInstalled ? (
+                        <>
+                          <button className="btn mini done" disabled>✓ Instalado</button>
+                          <button className="btn mini ghost" disabled={busyThis} onClick={() => remove(item)}>Remover</button>
+                        </>
+                      ) : (
+                        <button className="btn mini primary" disabled={!!installing} onClick={() => install(item)}>{busyThis ? "Instalando…" : "Instalar"}</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="hint" style={{ marginTop: 14 }}>Instala em <b>{isShader ? "shaderpacks/" : "resourcepacks/"}</b>. No jogo, ative em Opções ▸ {isShader ? "Shaders (precisa do Iris/OptiFine)" : "Pacotes de Recursos"}.</p>
     </div>
   );
 }
