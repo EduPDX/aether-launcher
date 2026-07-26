@@ -697,3 +697,159 @@ button.seg.active {
   font-family: Consolas, monospace;
   font-size: 12px;
 }
+
+/* ------------------------------------------------------------- arquivos -- */
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+button.crumb {
+  background: transparent;
+  color: var(--muted);
+  padding: 3px 6px;
+  font-weight: 600;
+}
+
+button.crumb:hover {
+  color: var(--text);
+  filter: none;
+}
+
+.crumb-sep {
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbar button {
+  padding: 7px 12px;
+}
+
+.create-row {
+  margin-bottom: 12px;
+}
+
+.create-row input {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.warn-box {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.file-row:hover {
+  background: var(--surface-2);
+}
+
+.file-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  text-align: left;
+  padding: 9px 10px;
+  font-weight: 500;
+}
+
+.file-main:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.file-main:hover {
+  filter: none;
+}
+
+.file-ico {
+  width: 18px;
+  text-align: center;
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-del {
+  padding: 8px 10px;
+}
+
+.file-row .badge {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+/* Editor de texto simples. */
+.files-editor {
+  height: 100%;
+}
+
+.code-edit {
+  flex: 1;
+  min-height: 320px;
+  width: 100%;
+  resize: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 12px;
+  outline: none;
+  user-select: text;
+  white-space: pre;
+  overflow: auto;
+}
+
+.code-edit:focus {
+  border-color: var(--accent-dim);
+}
+
+.code-edit[readonly] {
+  opacity: 0.85;
+}

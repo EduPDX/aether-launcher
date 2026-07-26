@@ -1,6 +1,6 @@
 [package]
 name = "launcher"
-version = "0.2.2"
+version = "0.2.3"
 description = "Aether Launcher"
 authors = ["Aether Platform"]
 edition = "2021"

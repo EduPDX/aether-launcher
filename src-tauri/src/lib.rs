@@ -1,3 +1,4 @@
+pub mod files;
 pub mod java;
 pub mod minecraft;
 mod play;
@@ -313,7 +314,15 @@ pub fn run() {
             run_sync,
             java_status,
             install_java,
-            play::play
+            play::play,
+            files::fs_manifest,
+            files::fs_list,
+            files::fs_read,
+            files::fs_write,
+            files::fs_mkdir,
+            files::fs_touch,
+            files::fs_delete,
+            files::fs_abs_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

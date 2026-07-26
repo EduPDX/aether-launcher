@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState } from "react";
@@ -652,19 +653,281 @@ function ServersSection({
 }
 
 // --------------------------------------------------------------- Arquivos --
+interface FsEntry {
+  name: string;
+  rel: string;
+  is_dir: boolean;
+  size: number;
+}
+
+interface ManagedDto {
+  files: string[];
+  managed_dirs: { dir: string; patterns: string[]; recursive: boolean }[];
+}
+
+interface ManagedInfo {
+  files: Set<string>;
+  dirs: { dir: string; patterns: string[]; recursive: boolean }[];
+  online: boolean;
+}
+
+const TEXT_EXT = new Set([
+  "txt", "json", "json5", "toml", "cfg", "conf", "ini", "properties", "yml", "yaml",
+  "log", "md", "mcmeta", "lang", "csv", "xml", "html", "css", "js", "sh", "bat",
+]);
+
+function isEditable(name: string, size: number): boolean {
+  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  return TEXT_EXT.has(ext) && size <= 1024 * 1024;
+}
+
+function joinRel(base: string, name: string): string {
+  return base ? `${base}/${name}` : name;
+}
+
 function FilesSection({ server }: { server: Server }) {
+  const [path, setPath] = useState(""); // pasta atual, relativa à pasta do jogo
+  const [entries, setEntries] = useState<FsEntry[]>([]);
+  const [managed, setManaged] = useState<ManagedInfo>({ files: new Set(), dirs: [], online: true });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [creating, setCreating] = useState<null | "file" | "folder">(null);
+  const [newName, setNewName] = useState("");
+  const [editing, setEditing] = useState<null | { rel: string; name: string; content: string; readOnly: boolean }>(null);
+
+  async function list(p: string) {
+    setError("");
+    try {
+      const rows = await invoke<FsEntry[]>("fs_list", { dir: server.dir, rel: p });
+      setEntries(rows);
+      setPath(p);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Ao abrir a seção (ou trocar de servidor): busca o manifesto uma vez para
+  // saber o que é do servidor, e lista a raiz.
+  useEffect(() => {
+    let cancelled = false;
+    invoke<ManagedDto>("fs_manifest", { server: server.server, profileId: server.profileId })
+      .then((m) => {
+        if (!cancelled) setManaged({ files: new Set(m.files), dirs: m.managed_dirs, online: true });
+      })
+      .catch(() => {
+        if (!cancelled) setManaged({ files: new Set(), dirs: [], online: false });
+      });
+    list("");
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.server, server.profileId, server.dir]);
+
+  const isManagedFile = (rel: string) => managed.files.has(rel);
+  const folderHasServer = (rel: string) =>
+    managed.dirs.some((m) => m.dir === rel || m.dir.startsWith(rel + "/")) ||
+    [...managed.files].some((f) => f === rel || f.startsWith(rel + "/"));
+  const inRetireZone = managed.dirs.some((m) => m.dir === path);
+
+  async function doDelete(e: FsEntry) {
+    if (!confirm(`Mover "${e.name}" para a lixeira do launcher?`)) return;
+    setBusy(true);
+    try {
+      await invoke("fs_delete", { dir: server.dir, rel: e.rel });
+      await list(path);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openEntry(e: FsEntry) {
+    if (e.is_dir) {
+      list(e.rel);
+      return;
+    }
+    if (!isEditable(e.name, e.size)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const content = await invoke<string>("fs_read", { dir: server.dir, rel: e.rel });
+      setEditing({ rel: e.rel, name: e.name, content, readOnly: isManagedFile(e.rel) });
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      await invoke("fs_write", { dir: server.dir, rel: editing.rel, contents: editing.content });
+      setEditing(null);
+      await list(path);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function create() {
+    const name = newName.trim();
+    if (!name) return;
+    if (/[\\/:*?"<>|]/.test(name)) {
+      setError('Nome inválido: evite \\ / : * ? " < > |');
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const rel = joinRel(path, name);
+      await invoke(creating === "folder" ? "fs_mkdir" : "fs_touch", { dir: server.dir, rel });
+      setCreating(null);
+      setNewName("");
+      await list(path);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openInExplorer() {
+    try {
+      const abs = await invoke<string>("fs_abs_path", { dir: server.dir, rel: path });
+      await openPath(abs);
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  const crumbs = path ? path.split("/") : [];
+
+  if (editing) {
+    return (
+      <div className="page files-editor">
+        <div className="page-head">
+          <h2>{editing.name}{editing.readOnly && <span className="badge" style={{ marginLeft: 8 }}>servidor · leitura</span>}</h2>
+          <div className="row">
+            <button onClick={() => setEditing(null)}>Voltar</button>
+            {!editing.readOnly && (
+              <button className="primary" disabled={busy} onClick={saveEdit}>
+                Salvar
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="meta">{editing.rel}</p>
+        <textarea
+          className="code-edit"
+          value={editing.content}
+          readOnly={editing.readOnly}
+          spellCheck={false}
+          onChange={(ev) => setEditing({ ...editing, content: ev.target.value })}
+        />
+        {error && <p className="error">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <h2>Arquivos</h2>
-      <p className="meta">Pasta do jogo: {server.dir}</p>
-      <div className="soon">
-        <p>O gerenciador de arquivos do cliente chega na próxima atualização:</p>
-        <ul>
-          <li>ver, editar e apagar arquivos da pasta do jogo</li>
-          <li>criar a pasta <code>shaderpacks</code> para shaders</li>
-        </ul>
-        <p className="meta">O launcher se atualiza sozinho — é só aguardar o aviso.</p>
+      <div className="page-head">
+        <h2>Arquivos</h2>
+        <button className="ghost" onClick={openInExplorer}>
+          Abrir no explorador
+        </button>
       </div>
+
+      <div className="crumbs">
+        <button className="crumb" onClick={() => list("")}>
+          Pasta do jogo
+        </button>
+        {crumbs.map((c, i) => (
+          <span key={i}>
+            <span className="crumb-sep">›</span>
+            <button className="crumb" onClick={() => list(crumbs.slice(0, i + 1).join("/"))}>
+              {c}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {!managed.online && (
+        <p className="hint" style={{ marginBottom: 10 }}>
+          Sem conexão com o servidor: não dá para marcar quais arquivos são sincronizados. Cuidado ao editar.
+        </p>
+      )}
+      {inRetireZone && (
+        <div className="warn-box">
+          ⚠ Esta pasta é sincronizada pelo servidor. Arquivos que você adicionar aqui podem ser removidos na próxima sincronização.
+        </div>
+      )}
+
+      <div className="toolbar">
+        {path && (
+          <button onClick={() => list(crumbs.slice(0, -1).join("/"))}>↑ Voltar</button>
+        )}
+        <button disabled={busy} onClick={() => { setCreating("folder"); setNewName(""); }}>
+          + Pasta
+        </button>
+        <button disabled={busy} onClick={() => { setCreating("file"); setNewName(""); }}>
+          + Arquivo
+        </button>
+        <button className="ghost" disabled={busy} onClick={() => list(path)}>
+          Atualizar
+        </button>
+      </div>
+
+      {creating && (
+        <div className="row create-row">
+          <input
+            autoFocus
+            placeholder={creating === "folder" ? "nome da pasta" : "nome do arquivo (ex.: notas.txt)"}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && create()}
+          />
+          <button className="primary" disabled={busy || !newName.trim()} onClick={create}>
+            Criar
+          </button>
+          <button onClick={() => setCreating(null)}>Cancelar</button>
+        </div>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      <div className="file-list">
+        {entries.length === 0 && <p className="meta">Pasta vazia.</p>}
+        {entries.map((e) => {
+          const locked = e.is_dir ? folderHasServer(e.rel) : isManagedFile(e.rel);
+          const editable = !e.is_dir && isEditable(e.name, e.size);
+          return (
+            <div key={e.rel} className={`file-row ${e.is_dir || editable ? "clickable" : ""}`}>
+              <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
+                <span className="file-ico">{e.is_dir ? "📁" : editable ? "📄" : "▪"}</span>
+                <span className="file-name">{e.name}</span>
+                {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
+                {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
+              </button>
+              {!locked && (
+                <button className="ghost file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>
+                  🗑
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="hint" style={{ marginTop: 14 }}>
+        Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira do launcher (recuperável), nunca é apagado de vez.
+      </p>
     </div>
   );
 }
