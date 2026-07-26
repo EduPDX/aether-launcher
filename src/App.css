@@ -264,6 +264,37 @@ button.crumb:hover { background: var(--surface-3); color: var(--text); }
 }
 .code-edit:focus { border-color: var(--accent); }
 
+/* abas Arquivos / Lixeira */
+.file-tabs { display: flex; gap: 3px; margin-bottom: 14px; border-bottom: 1px solid var(--border-soft); }
+.file-tab { border: none; background: transparent; color: var(--text-dim); font-size: 13px; font-weight: 600; padding: 9px 13px; border-radius: 8px 8px 0 0; display: inline-flex; align-items: center; gap: 7px; }
+.file-tab:hover { color: var(--text); background: var(--surface-2); }
+.file-tab.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.file-tab .n { font-size: 11px; color: var(--text-mute); }
+/* alternador lista / grade */
+.vtoggle { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.vtoggle button { border: none; background: transparent; color: var(--text-mute); border-radius: 6px; padding: 5px 8px; display: grid; place-items: center; }
+.vtoggle button svg { width: 15px; height: 15px; }
+.vtoggle button.on { background: var(--surface-4); color: var(--text); }
+/* grade */
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 10px; }
+.gtile { border: 1px solid var(--border); border-radius: var(--r-md); padding: 15px 10px 11px; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; background: var(--surface); position: relative; color: var(--text); }
+.gtile:not(:disabled):hover { background: var(--surface-2); border-color: var(--text-mute); }
+.gtile:disabled { cursor: default; }
+.gtile .gi { font-size: 29px; line-height: 1; }
+.gtile .gn { font-size: 12px; font-weight: 500; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gtile .glock { position: absolute; top: 7px; right: 7px; font-size: 10px; color: var(--text-mute); }
+.gtile .gdel { position: absolute; top: 5px; left: 5px; opacity: 0; background: var(--surface-3); border: none; color: var(--text-dim); border-radius: 6px; padding: 3px 6px; }
+.gtile:hover .gdel { opacity: 1; }
+.gtile .gdel:hover { color: var(--danger); }
+/* lixeira */
+.trash-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.trash-head .eyebrow { flex: 1; }
+.trow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+.trow .ti { color: var(--text-mute); }
+.trow .tn { font-weight: 500; }
+.trow .tw { margin-left: auto; font-size: 11.5px; color: var(--text-mute); }
+.trow .tacts { display: flex; gap: 6px; }
+
 /* ============================================================ SERVIDORES = */
 .server-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .server-head .name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }

@@ -346,7 +346,11 @@ pub fn run() {
             files::fs_mkdir,
             files::fs_touch,
             files::fs_delete,
-            files::fs_abs_path,
+            files::fs_trash_list,
+            files::fs_trash_restore,
+            files::fs_trash_purge,
+            files::fs_trash_empty,
+            files::fs_reveal,
             system_stats
         ])
         .run(tauri::generate_context!())

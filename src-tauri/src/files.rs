@@ -16,7 +16,7 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{client, fetch_manifest};
 
@@ -214,8 +214,38 @@ pub async fn fs_touch(dir: String, rel: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Metadados de um item na lixeira — guardam o caminho original para restaurar
+/// com fidelidade (inclusive pastas aninhadas).
+#[derive(Serialize, Deserialize, Clone)]
+struct TrashMeta {
+    rel: String,
+    name: String,
+    is_dir: bool,
+    ts: u64,
+}
+
+/// Item da lixeira exposto ao frontend.
+#[derive(Serialize, Clone)]
+pub struct TrashItem {
+    id: String, // nome da pasta-slot (timestamp em ms)
+    rel: String,
+    name: String,
+    is_dir: bool,
+    ts: u64,
+}
+
+fn trash_dir(base: &Path) -> PathBuf {
+    base.join(".aether-trash")
+}
+
+/// Valida que o id de um slot da lixeira é só o timestamp (sem travessia).
+fn valid_slot_id(id: &str) -> bool {
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_digit())
+}
+
 /// Move um arquivo ou pasta para a lixeira `.aether-trash` (recuperável).
-/// Nunca apaga de vez — o mesmo princípio do sync ao aposentar arquivos.
+/// Cada item vai para um slot `{timestamp}/` com o próprio nome + `meta.json`,
+/// preservando o caminho original para a restauração. Nunca apaga de vez.
 #[tauri::command]
 pub async fn fs_delete(dir: String, rel: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -224,24 +254,127 @@ pub async fn fs_delete(dir: String, rel: String) -> Result<(), String> {
         if !full.exists() {
             return Err("não encontrado".into());
         }
-        let stamp = std::time::SystemTime::now()
+        let is_dir = full.is_dir();
+        let name = full
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(String::from)
+            .ok_or("nome inválido")?;
+        let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis().to_string())
-            .unwrap_or_else(|_| "0".into());
-        let trash = base.join(".aether-trash").join(stamp);
-        std::fs::create_dir_all(&trash).map_err(|e| e.to_string())?;
-        let leaf = rel.trim_end_matches('/').replace('/', "_");
-        let dest = trash.join(if leaf.is_empty() { "item".into() } else { leaf });
-        std::fs::rename(&full, &dest).map_err(|e| e.to_string())?;
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let slot = trash_dir(&base).join(ts.to_string());
+        std::fs::create_dir_all(&slot).map_err(|e| e.to_string())?;
+        std::fs::rename(&full, slot.join(&name)).map_err(|e| e.to_string())?;
+        let meta = TrashMeta { rel: rel.trim_end_matches('/').to_string(), name, is_dir, ts };
+        let json = serde_json::to_vec(&meta).map_err(|e| e.to_string())?;
+        std::fs::write(slot.join("meta.json"), json).map_err(|e| e.to_string())?;
         Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// Caminho absoluto de uma pasta, para abrir no explorador do sistema.
+/// Lista os itens da lixeira (só os slots com `meta.json`), mais novos primeiro.
 #[tauri::command]
-pub async fn fs_abs_path(dir: String, rel: String) -> Result<String, String> {
+pub async fn fs_trash_list(dir: String) -> Result<Vec<TrashItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let base = std::fs::canonicalize(&dir).map_err(|_| "pasta do jogo inválida".to_string())?;
+        let trash = trash_dir(&base);
+        if !trash.is_dir() {
+            return Ok(vec![]);
+        }
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&trash).map_err(|e| e.to_string())? {
+            let slot = match entry {
+                Ok(e) => e.path(),
+                Err(_) => continue,
+            };
+            let id = match slot.file_name().and_then(|n| n.to_str()) {
+                Some(n) if valid_slot_id(n) => n.to_string(),
+                _ => continue,
+            };
+            let meta_raw = match std::fs::read(slot.join("meta.json")) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            if let Ok(m) = serde_json::from_slice::<TrashMeta>(&meta_raw) {
+                out.push(TrashItem { id, rel: m.rel, name: m.name, is_dir: m.is_dir, ts: m.ts });
+            }
+        }
+        out.sort_by(|a, b| b.ts.cmp(&a.ts));
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Restaura um item da lixeira para o lugar original. Falha se já existir algo lá.
+#[tauri::command]
+pub async fn fs_trash_restore(dir: String, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !valid_slot_id(&id) {
+            return Err("item inválido".into());
+        }
+        let base = std::fs::canonicalize(&dir).map_err(|_| "pasta do jogo inválida".to_string())?;
+        let slot = trash_dir(&base).join(&id);
+        let meta: TrashMeta = serde_json::from_slice(
+            &std::fs::read(slot.join("meta.json")).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let (_, target) = resolve(&dir, &meta.rel)?;
+        if target.exists() {
+            return Err("já existe um arquivo nesse lugar — mova ou renomeie antes".into());
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::rename(slot.join(&meta.name), &target).map_err(|e| e.to_string())?;
+        std::fs::remove_dir_all(&slot).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Apaga de vez um item da lixeira.
+#[tauri::command]
+pub async fn fs_trash_purge(dir: String, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !valid_slot_id(&id) {
+            return Err("item inválido".into());
+        }
+        let base = std::fs::canonicalize(&dir).map_err(|_| "pasta do jogo inválida".to_string())?;
+        std::fs::remove_dir_all(trash_dir(&base).join(&id)).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Esvazia a lixeira inteira.
+#[tauri::command]
+pub async fn fs_trash_empty(dir: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let base = std::fs::canonicalize(&dir).map_err(|_| "pasta do jogo inválida".to_string())?;
+        let trash = trash_dir(&base);
+        if trash.is_dir() {
+            std::fs::remove_dir_all(&trash).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Abre uma pasta no explorador do sistema. Feito em Rust (caminho validado
+/// contra a pasta do jogo) para não depender do escopo do plugin opener.
+#[tauri::command]
+pub async fn fs_reveal(dir: String, rel: String) -> Result<(), String> {
     let (_, full) = resolve(&dir, &rel)?;
-    Ok(full.to_string_lossy().to_string())
+    if !full.exists() {
+        return Err("pasta não encontrada".into());
+    }
+    open::that(full).map_err(|e| e.to_string())
 }

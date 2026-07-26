@@ -2051,12 +2051,13 @@ dependencies = [
 
 [[package]]
 name = "launcher"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "ed25519-dalek",
  "futures-util",
  "hex",
  "md-5",
+ "open",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

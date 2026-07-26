@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState, type ReactElement } from "react";
@@ -692,10 +691,26 @@ function isEditable(name: string, size: number): boolean {
 }
 function joinRel(base: string, name: string): string { return base ? `${base}/${name}` : name; }
 
+interface TrashItem { id: string; rel: string; name: string; is_dir: boolean; ts: number; }
+
+function agoLabel(ts: number): string {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return "agora há pouco";
+  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+  return `há ${Math.floor(s / 86400)} dias`;
+}
+
+const ListIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>;
+const GridIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>;
+
 function FilesSection({ server }: { server: Server }) {
+  const [tab, setTab] = useState<"files" | "trash">("files");
+  const [view, setView] = useState<"list" | "grid">("list");
   const [path, setPath] = useState("");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [managed, setManaged] = useState<ManagedInfo>({ files: new Set(), dirs: [], online: true });
+  const [trash, setTrash] = useState<TrashItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState<null | "file" | "folder">(null);
@@ -710,12 +725,18 @@ function FilesSection({ server }: { server: Server }) {
     } catch (e) { setError(String(e)); }
   }
 
+  async function loadTrash() {
+    try { setTrash(await invoke<TrashItem[]>("fs_trash_list", { dir: server.dir })); }
+    catch (e) { setError(String(e)); }
+  }
+
   useEffect(() => {
     let cancelled = false;
     invoke<ManagedDto>("fs_manifest", { server: server.server, profileId: server.profileId })
       .then((m) => { if (!cancelled) setManaged({ files: new Set(m.files), dirs: m.managed_dirs, online: true }); })
       .catch(() => { if (!cancelled) setManaged({ files: new Set(), dirs: [], online: false }); });
     list("");
+    loadTrash();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.server, server.profileId, server.dir]);
@@ -729,7 +750,7 @@ function FilesSection({ server }: { server: Server }) {
   async function doDelete(e: FsEntry) {
     if (!confirm(`Mover "${e.name}" para a lixeira do launcher?`)) return;
     setBusy(true);
-    try { await invoke("fs_delete", { dir: server.dir, rel: e.rel }); await list(path); }
+    try { await invoke("fs_delete", { dir: server.dir, rel: e.rel }); await list(path); await loadTrash(); }
     catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
@@ -762,9 +783,27 @@ function FilesSection({ server }: { server: Server }) {
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
-  async function openInExplorer() {
-    try { const abs = await invoke<string>("fs_abs_path", { dir: server.dir, rel: path }); await openPath(abs); }
+  async function reveal() {
+    try { await invoke("fs_reveal", { dir: server.dir, rel: path }); }
     catch (err) { setError(String(err)); }
+  }
+
+  async function restore(id: string) {
+    setBusy(true); setError("");
+    try { await invoke("fs_trash_restore", { dir: server.dir, id }); await loadTrash(); await list(path); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
+  }
+  async function purge(id: string) {
+    if (!confirm("Apagar de vez? Não dá para desfazer.")) return;
+    setBusy(true);
+    try { await invoke("fs_trash_purge", { dir: server.dir, id }); await loadTrash(); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
+  }
+  async function emptyTrash() {
+    if (!confirm("Esvaziar a lixeira de vez? Não dá para desfazer.")) return;
+    setBusy(true);
+    try { await invoke("fs_trash_empty", { dir: server.dir }); await loadTrash(); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
   const crumbs = path ? path.split("/") : [];
@@ -790,56 +829,113 @@ function FilesSection({ server }: { server: Server }) {
     <div className="page">
       <div className="page-head">
         <h2>Arquivos</h2>
-        <div className="actions"><button className="btn ghost" onClick={openInExplorer}>Abrir no explorador</button></div>
+        {tab === "files" && (
+          <div className="actions">
+            <div className="vtoggle">
+              <button className={view === "list" ? "on" : ""} title="Lista" onClick={() => setView("list")}>{ListIcon}</button>
+              <button className={view === "grid" ? "on" : ""} title="Grade" onClick={() => setView("grid")}>{GridIcon}</button>
+            </div>
+            <button className="btn ghost" onClick={reveal}>Abrir no explorador</button>
+          </div>
+        )}
       </div>
 
-      <div className="crumbs">
-        <button className="crumb" onClick={() => list("")}>Pasta do jogo</button>
-        {crumbs.map((c, i) => (
-          <span key={i}><span className="crumb-sep">›</span><button className="crumb" onClick={() => list(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>
-        ))}
+      <div className="file-tabs">
+        <button className={`file-tab ${tab === "files" ? "on" : ""}`} onClick={() => setTab("files")}>Arquivos</button>
+        <button className={`file-tab ${tab === "trash" ? "on" : ""}`} onClick={() => { setTab("trash"); loadTrash(); }}>
+          Lixeira {trash.length > 0 && <span className="n">{trash.length}</span>}
+        </button>
       </div>
-
-      {!managed.online && <p className="hint" style={{ marginBottom: 10 }}>Sem conexão com o servidor: não dá para marcar quais arquivos são sincronizados. Cuidado ao editar.</p>}
-      {inRetireZone && <div className="warn-box">⚠ Esta pasta é sincronizada pelo servidor. Arquivos que você adicionar aqui podem ser removidos na próxima sincronização.</div>}
-
-      <div className="toolbar">
-        {path && <button onClick={() => list(crumbs.slice(0, -1).join("/"))}>↑ Voltar</button>}
-        <button disabled={busy} onClick={() => { setCreating("folder"); setNewName(""); }}>+ Pasta</button>
-        <button disabled={busy} onClick={() => { setCreating("file"); setNewName(""); }}>+ Arquivo</button>
-        <button className="ghost" disabled={busy} onClick={() => list(path)}>Atualizar</button>
-      </div>
-
-      {creating && (
-        <div className="row create-row">
-          <input autoFocus placeholder={creating === "folder" ? "nome da pasta" : "nome do arquivo (ex.: notas.txt)"} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
-          <button className="btn primary" disabled={busy || !newName.trim()} onClick={create}>Criar</button>
-          <button className="btn" onClick={() => setCreating(null)}>Cancelar</button>
-        </div>
-      )}
 
       {error && <p className="error">{error}</p>}
 
-      <div className="file-list">
-        {entries.length === 0 && <p className="meta">Pasta vazia.</p>}
-        {entries.map((e) => {
-          const locked = e.is_dir ? folderHasServer(e.rel) : isManagedFile(e.rel);
-          const editable = !e.is_dir && isEditable(e.name, e.size);
-          return (
-            <div key={e.rel} className="file-row">
-              <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
-                <span className="file-ico">{e.is_dir ? "📁" : editable ? "📄" : "▪"}</span>
-                <span className="file-name">{e.name}</span>
-                {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
-                {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
-              </button>
-              {!locked && <button className="file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>🗑</button>}
-            </div>
-          );
-        })}
-      </div>
+      {tab === "files" ? (
+        <>
+          <div className="crumbs">
+            <button className="crumb" onClick={() => list("")}>Pasta do jogo</button>
+            {crumbs.map((c, i) => (
+              <span key={i}><span className="crumb-sep">›</span><button className="crumb" onClick={() => list(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>
+            ))}
+          </div>
 
-      <p className="hint" style={{ marginTop: 14 }}>Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira do launcher (recuperável), nunca é apagado de vez.</p>
+          {!managed.online && <p className="hint" style={{ marginBottom: 10 }}>Sem conexão com o servidor: não dá para marcar quais arquivos são sincronizados. Cuidado ao editar.</p>}
+          {inRetireZone && <div className="warn-box">⚠ Esta pasta é sincronizada pelo servidor. Arquivos que você adicionar aqui podem ser removidos na próxima sincronização.</div>}
+
+          <div className="toolbar">
+            {path && <button onClick={() => list(crumbs.slice(0, -1).join("/"))}>↑ Voltar</button>}
+            <button disabled={busy} onClick={() => { setCreating("folder"); setNewName(""); }}>+ Pasta</button>
+            <button disabled={busy} onClick={() => { setCreating("file"); setNewName(""); }}>+ Arquivo</button>
+            <button className="ghost" disabled={busy} onClick={() => list(path)}>Atualizar</button>
+          </div>
+
+          {creating && (
+            <div className="row create-row">
+              <input autoFocus placeholder={creating === "folder" ? "nome da pasta" : "nome do arquivo (ex.: notas.txt)"} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
+              <button className="btn primary" disabled={busy || !newName.trim()} onClick={create}>Criar</button>
+              <button className="btn" onClick={() => setCreating(null)}>Cancelar</button>
+            </div>
+          )}
+
+          {entries.length === 0 && <p className="meta">Pasta vazia.</p>}
+
+          {view === "list" ? (
+            <div className="file-list">
+              {entries.map((e) => {
+                const locked = e.is_dir ? folderHasServer(e.rel) : isManagedFile(e.rel);
+                const editable = !e.is_dir && isEditable(e.name, e.size);
+                return (
+                  <div key={e.rel} className="file-row">
+                    <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
+                      <span className="file-ico">{e.is_dir ? "📁" : editable ? "📄" : "▪"}</span>
+                      <span className="file-name">{e.name}</span>
+                      {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
+                      {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
+                    </button>
+                    {!locked && <button className="file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>🗑</button>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="fgrid">
+              {entries.map((e) => {
+                const locked = e.is_dir ? folderHasServer(e.rel) : isManagedFile(e.rel);
+                const editable = !e.is_dir && isEditable(e.name, e.size);
+                return (
+                  <button key={e.rel} className="gtile" disabled={!e.is_dir && !editable} onClick={() => openEntry(e)}>
+                    {locked && <span className="glock" title="Sincronizado pelo servidor">🔒</span>}
+                    {!locked && <span className="gdel" title="Mover para a lixeira" onClick={(ev) => { ev.stopPropagation(); doDelete(e); }}>🗑</span>}
+                    <span className="gi">{e.is_dir ? "📁" : "📄"}</span>
+                    <span className="gn" title={e.name}>{e.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="hint" style={{ marginTop: 14 }}>Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira (recuperável), nunca é apagado de vez.</p>
+        </>
+      ) : (
+        <>
+          <div className="trash-head">
+            <span className="eyebrow">Itens removidos — recuperáveis antes de sumir de vez</span>
+            {trash.length > 0 && <button className="btn ghost danger" disabled={busy} onClick={emptyTrash}>Esvaziar lixeira</button>}
+          </div>
+          {trash.length === 0 && <p className="meta">Lixeira vazia.</p>}
+          {trash.map((t) => (
+            <div key={t.id} className="trow">
+              <span className="ti">{t.is_dir ? "📁" : "📄"}</span>
+              <span className="tn">{t.name}</span>
+              <span className="tw">{agoLabel(t.ts)} · de {t.rel.includes("/") ? t.rel.slice(0, t.rel.lastIndexOf("/")) : "raiz"}</span>
+              <div className="tacts">
+                <button className="btn mini" disabled={busy} onClick={() => restore(t.id)}>Restaurar</button>
+                <button className="btn mini danger" disabled={busy} onClick={() => purge(t.id)}>Excluir</button>
+              </div>
+            </div>
+          ))}
+          <p className="hint" style={{ marginTop: 14 }}>A lixeira é a pasta <b>.aether-trash</b> dentro do jogo. Tudo que você exclui fica aqui, recuperável, antes de sumir de vez.</p>
+        </>
+      )}
     </div>
   );
 }
