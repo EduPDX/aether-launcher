@@ -301,9 +301,33 @@ async fn install_java(app: tauri::AppHandle) -> Result<java::JavaInfo, String> {
     Ok(info)
 }
 
+/// Estado do coletor de métricas da máquina do jogador. Mantido entre chamadas
+/// porque o uso de CPU é um delta entre duas leituras.
+pub struct SysState(std::sync::Mutex<sysinfo::System>);
+
+#[derive(Serialize, Clone)]
+struct SystemStats {
+    cpu: f32,        // uso global de CPU em %
+    mem_used: u64,   // bytes
+    mem_total: u64,  // bytes
+}
+
+#[tauri::command]
+fn system_stats(state: tauri::State<SysState>) -> Result<SystemStats, String> {
+    let mut sys = state.0.lock().map_err(|e| e.to_string())?;
+    sys.refresh_memory();
+    sys.refresh_cpu_usage();
+    Ok(SystemStats {
+        cpu: sys.global_cpu_usage(),
+        mem_used: sys.used_memory(),
+        mem_total: sys.total_memory(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(SysState(std::sync::Mutex::new(sysinfo::System::new())))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -322,7 +346,8 @@ pub fn run() {
             files::fs_mkdir,
             files::fs_touch,
             files::fs_delete,
-            files::fs_abs_path
+            files::fs_abs_path,
+            system_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

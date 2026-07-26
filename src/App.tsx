@@ -1,12 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import "./App.css";
 
+// ============================================================== tipos =======
 interface Server {
   server: string;
   profileId: string;
@@ -49,7 +51,6 @@ interface PlayProgress {
   total: number;
 }
 
-/** O que a barra de progresso mostra agora — de sync ou de play, unificado. */
 interface Activity {
   label: string;
   detail: string;
@@ -57,12 +58,18 @@ interface Activity {
   total: number;
 }
 
+interface SystemStats {
+  cpu: number;
+  mem_used: number;
+  mem_total: number;
+}
+
 const DEFAULT_MEMORY_MB = 4096;
 
-// ---------------------------------------------------------- armazenamento --
+// ==================================================== armazenamento =========
 const SERVERS_KEY = "aether.launcher.servers";
 const ACTIVE_KEY = "aether.launcher.active";
-const LEGACY_KEY = "aether.launcher.config"; // config antiga, de servidor único
+const LEGACY_KEY = "aether.launcher.config";
 
 function loadServers(): Server[] {
   const raw = localStorage.getItem(SERVERS_KEY);
@@ -74,7 +81,6 @@ function loadServers(): Server[] {
       /* corrompido: cai para a migração/vazio */
     }
   }
-  // Migração do formato antigo (um servidor só).
   const legacy = localStorage.getItem(LEGACY_KEY);
   if (legacy) {
     try {
@@ -103,69 +109,118 @@ function formatBytes(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
-// --------------------------------------------------------------------- tema --
-type ThemeMode = "dark" | "light";
-interface Theme {
-  mode: ThemeMode;
-  accent: string;
+// ============================================================== tema ========
+interface Preset {
+  label: string;
+  bg: string;
+  card: string;
+  dot: string;
+  vars: Record<string, string>;
 }
 
-const ACCENTS: { id: string; label: string }[] = [
-  { id: "#22c55e", label: "Verde" },
-  { id: "#3b82f6", label: "Azul" },
-  { id: "#a855f7", label: "Roxo" },
-  { id: "#f97316", label: "Laranja" },
-  { id: "#ec4899", label: "Rosa" },
-  { id: "#eab308", label: "Âmbar" },
-];
+const PRESETS: Record<string, Preset> = {
+  midnight: {
+    label: "Meia-noite", bg: "#0c0f13", card: "#1e2430", dot: "#34d399",
+    vars: { "--bg": "#0c0f13", "--surface": "#12151b", "--surface-2": "#171b22", "--surface-3": "#1e2430", "--surface-4": "#262e3c", "--border": "#262c36", "--border-soft": "#1b212a", "--text": "#e6eaf1", "--text-dim": "#9aa4b2", "--text-mute": "#67707e", "--accent": "#34d399", "--accent-2": "#38bdf8", "--accent-ink": "#04140d", "--accent-soft": "rgba(52,211,153,.14)" },
+  },
+  aurora: {
+    label: "Aurora", bg: "#071615", card: "#163330", dot: "#2dd4bf",
+    vars: { "--bg": "#071615", "--surface": "#0c1f1d", "--surface-2": "#102725", "--surface-3": "#163330", "--surface-4": "#1e423e", "--border": "#1c3b38", "--border-soft": "#12302d", "--text": "#dff5f0", "--text-dim": "#8fb8b2", "--text-mute": "#5f817c", "--accent": "#2dd4bf", "--accent-2": "#34d399", "--accent-ink": "#04140d", "--accent-soft": "rgba(45,212,191,.15)" },
+  },
+  ametista: {
+    label: "Ametista", bg: "#100a19", card: "#261b40", dot: "#a855f7",
+    vars: { "--bg": "#100a19", "--surface": "#171025", "--surface-2": "#1d1530", "--surface-3": "#261b40", "--surface-4": "#33245a", "--border": "#2a1f45", "--border-soft": "#1e1636", "--text": "#ece6f7", "--text-dim": "#a99bc4", "--text-mute": "#766a90", "--accent": "#a855f7", "--accent-2": "#d946ef", "--accent-ink": "#17081f", "--accent-soft": "rgba(168,85,247,.16)" },
+  },
+  brasa: {
+    label: "Brasa", bg: "#14100c", card: "#2f251b", dot: "#f59e0b",
+    vars: { "--bg": "#14100c", "--surface": "#1c1712", "--surface-2": "#241d16", "--surface-3": "#2f251b", "--surface-4": "#3d2f20", "--border": "#34281c", "--border-soft": "#261e15", "--text": "#f3ece2", "--text-dim": "#c2ae98", "--text-mute": "#8a7660", "--accent": "#f59e0b", "--accent-2": "#fb923c", "--accent-ink": "#1a1206", "--accent-soft": "rgba(245,158,11,.15)" },
+  },
+  rose: {
+    label: "Rosé", bg: "#16090f", card: "#351a26", dot: "#ec4899",
+    vars: { "--bg": "#16090f", "--surface": "#201017", "--surface-2": "#29141d", "--surface-3": "#351a26", "--surface-4": "#452232", "--border": "#3a1f2c", "--border-soft": "#2a1520", "--text": "#f7e6ee", "--text-dim": "#c99cb0", "--text-mute": "#906a7c", "--accent": "#ec4899", "--accent-2": "#f472b6", "--accent-ink": "#1e0710", "--accent-soft": "rgba(236,72,153,.16)" },
+  },
+  papel: {
+    label: "Papel", bg: "#e7ebf1", card: "#ffffff", dot: "#059669",
+    vars: { "--bg": "#e7ebf1", "--surface": "#ffffff", "--surface-2": "#f4f6fa", "--surface-3": "#eaeef4", "--surface-4": "#dfe5ee", "--border": "#d6dce5", "--border-soft": "#e6eaf0", "--text": "#101725", "--text-dim": "#4c5665", "--text-mute": "#838d9b", "--accent": "#059669", "--accent-2": "#0284c7", "--accent-ink": "#ffffff", "--accent-soft": "rgba(5,150,105,.12)" },
+  },
+};
 
-function loadTheme(): Theme {
-  const padrao: Theme = { mode: "dark", accent: "#22c55e" };
-  try {
-    return { ...padrao, ...JSON.parse(localStorage.getItem("aether.launcher.theme") ?? "{}") };
-  } catch {
-    return padrao;
-  }
+const THEME_KEY = "aether.launcher.theme.preset";
+
+function loadPreset(): string {
+  const id = localStorage.getItem(THEME_KEY);
+  return id && PRESETS[id] ? id : "midnight";
 }
 
-function applyTheme(t: Theme) {
+function applyPreset(id: string) {
+  const p = PRESETS[id] ?? PRESETS.midnight;
   const r = document.documentElement;
-  r.dataset.theme = t.mode;
-  r.style.setProperty("--accent", t.accent);
-  r.style.setProperty("--accent-dim", t.accent);
+  for (const [k, v] of Object.entries(p.vars)) r.style.setProperty(k, v);
 }
 
 const STATE_LABEL: Record<string, string> = {
-  running: "online",
-  stopped: "offline",
-  starting: "iniciando",
-  stopping: "parando",
-  crashed: "instável",
-  unknown: "—",
+  running: "online", stopped: "offline", starting: "iniciando",
+  stopping: "parando", crashed: "instável", unknown: "—",
 };
 
 const PLAY_STAGE: Record<string, string> = {
-  java: "Java",
-  meta: "Versão",
-  client: "Minecraft",
-  libraries: "Bibliotecas",
-  assets: "Recursos do jogo",
-  forge: "Forge",
-  launch: "Abrindo",
-  running: "Jogo iniciado",
-  closed: "Jogo encerrado",
+  java: "Java", meta: "Versão", client: "Minecraft", libraries: "Bibliotecas",
+  assets: "Recursos do jogo", forge: "Forge", launch: "Abrindo",
+  running: "Jogo iniciado", closed: "Jogo encerrado",
 };
 
-// ------------------------------------------------------- atualização (auto) --
+// ============================================================== ícones ======
+function BrandLogo({ size = 24 }: { size?: number }) {
+  return (
+    <span className="brand-logo">
+      <svg viewBox="0 0 24 24" width={size} height={size}>
+        <defs>
+          <linearGradient id="aeg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#34d399" />
+            <stop offset="1" stopColor="#38bdf8" />
+          </linearGradient>
+        </defs>
+        <rect x="8.5" y="2" width="8" height="8" rx="2" fill="url(#aeg)" />
+        <rect x="2.5" y="12" width="8" height="8" rx="2" fill="url(#aeg)" />
+        <rect x="14.5" y="12" width="8" height="8" rx="2" fill="url(#aeg)" />
+      </svg>
+    </span>
+  );
+}
+
+type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh";
+
+function Icon({ n }: { n: IconName }) {
+  const p: Record<IconName, ReactElement> = {
+    dashboard: <path d="M3 12 12 3l9 9M5 10v10h5v-6h4v6h5V10" />,
+    content: <><circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="14.5" r="2.5" /><circle cx="6.5" cy="12.5" r="2.5" /></>,
+    files: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />,
+    map: <path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3ZM9 4v13M15 7v13" />,
+    servers: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+    skin: <><circle cx="12" cy="8" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" /></>,
+    cpu: <><rect x="5" y="5" width="14" height="14" rx="2" /><path d="M9 9h6v6H9z" /><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" /></>,
+    ram: <path d="M4 6h16v9H4zM8 15v3M16 15v3M8 6V4M16 6V4" />,
+    server: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+    play: <path d="M7 5v14l11-7z" />,
+    refresh: <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />,
+  };
+  const filled = n === "play";
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {p[n]}
+    </svg>
+  );
+}
+
+// ==================================================== atualização (auto) ====
 function UpdateBanner() {
   const [update, setUpdate] = useState<Update | null>(null);
   const [estado, setEstado] = useState<"idle" | "baixando" | "erro">("idle");
   const [erro, setErro] = useState("");
 
   useEffect(() => {
-    check()
-      .then((u) => u && setUpdate(u))
-      .catch(() => {});
+    check().then((u) => u && setUpdate(u)).catch(() => {});
   }, []);
 
   if (!update) return null;
@@ -188,27 +243,139 @@ function UpdateBanner() {
         Nova versão <b>{update.version}</b> disponível.
         {estado === "erro" && <span className="update-err"> Falhou: {erro}</span>}
       </span>
-      <button className="primary" disabled={estado === "baixando"} onClick={atualizar}>
+      <button className="btn primary" disabled={estado === "baixando"} onClick={atualizar}>
         {estado === "baixando" ? "Atualizando…" : "Atualizar agora"}
       </button>
     </div>
   );
 }
 
-type Section = "play" | "servers" | "files" | "settings" | "profile";
+// ===================================================== métricas do cliente ==
+function useSystemStats(): SystemStats | null {
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => invoke<SystemStats>("system_stats").then((s) => alive && setStats(s)).catch(() => {});
+    tick();
+    const t = setInterval(tick, 2000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return stats;
+}
 
+// =============================================== motor de play/sync (lift) ==
+function usePlayEngine(server: Server) {
+  const [info, setInfo] = useState<ServerInfo | null>(null);
+  const [plan, setPlan] = useState<PlanSummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+  const [error, setError] = useState("");
+
+  const pushLog = (line: string) => setLog((prev) => [...prev.slice(-400), line]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInfo(null);
+    const load = () =>
+      invoke<ServerInfo>("server_info", { server: server.server, profileId: server.profileId })
+        .then((i) => !cancelled && setInfo(i))
+        .catch((e) => !cancelled && setError(String(e)));
+    load();
+    const timer = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [server.server, server.profileId]);
+
+  useEffect(() => {
+    const un = listen<PlayProgress>("play-progress", (event) => {
+      const p = event.payload;
+      const label = PLAY_STAGE[p.stage] ?? p.stage;
+      setActivity({ label, detail: p.detail, done: p.done, total: p.total });
+      pushLog(p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`);
+      if (p.stage === "closed" && p.detail.includes("erro")) setError(`${label}: ${p.detail}`);
+    });
+    return () => { un.then((fn) => fn()); };
+  }, []);
+
+  useEffect(() => {
+    const un = listen<SyncProgress>("sync-progress", (event) => {
+      const p = event.payload;
+      const label = p.stage === "retire" ? "Removendo" : p.stage === "done" ? "Sincronizado" : "Baixando";
+      setActivity({ label, detail: p.path, done: p.done, total: p.total });
+      if (p.stage === "download") pushLog(`baixado  ${p.path}`);
+      if (p.stage === "retire") pushLog(`removido ${p.path}`);
+      if (p.stage === "done") pushLog("— sincronização concluída —");
+    });
+    return () => { un.then((fn) => fn()); };
+  }, []);
+
+  async function playNow() {
+    setBusy(true); setError("");
+    setActivity({ label: "Preparando", detail: "sincronizando", done: 0, total: 0 });
+    try {
+      pushLog("— sincronizando antes de jogar —");
+      await invoke<PlanSummary>("run_sync", { server: server.server, profileId: server.profileId, dir: server.dir, includeOptional: false });
+      pushLog("— preparando o jogo —");
+      const result = await invoke<{ version: string; pid: number }>("play", {
+        server: server.server, profileId: server.profileId, dir: server.dir,
+        username: server.username, memoryMb: server.memoryMb ?? null,
+      });
+      pushLog(`Minecraft ${result.version} aberto (pid ${result.pid}). Bom jogo!`);
+      setActivity({ label: "Jogo iniciado", detail: "bom jogo!", done: 1, total: 1 });
+    } catch (e) {
+      setError(String(e)); pushLog(`ERRO: ${e}`); setActivity(null);
+    } finally { setBusy(false); }
+  }
+
+  async function sync() {
+    setBusy(true); setError("");
+    setActivity({ label: "Sincronizando", detail: "", done: 0, total: 0 });
+    try {
+      const result = await invoke<PlanSummary>("run_sync", { server: server.server, profileId: server.profileId, dir: server.dir, includeOptional: false });
+      setPlan({ ...result, synced: true, download: [], retire: [] });
+    } catch (e) {
+      setError(String(e)); pushLog(`ERRO: ${e}`); setActivity(null);
+    } finally { setBusy(false); }
+  }
+
+  async function check_() {
+    setBusy(true); setError("");
+    try {
+      const result = await invoke<PlanSummary>("check_sync", { server: server.server, profileId: server.profileId, dir: server.dir, includeOptional: false });
+      setPlan(result);
+      pushLog(`verificado: ${result.download.length} para baixar (${formatBytes(result.download_size)}), ${result.retire.length} para remover, ${result.keep} corretos`);
+    } catch (e) {
+      setError(String(e));
+    } finally { setBusy(false); }
+  }
+
+  return { info, plan, busy, activity, log, error, playNow, sync, check_ };
+}
+
+type Engine = ReturnType<typeof usePlayEngine>;
+type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings";
+
+// Lazy: chamar getCurrentWindow() só na ação evita quebrar fora do Tauri.
+const win = {
+  minimize: () => getCurrentWindow().minimize(),
+  toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+  close: () => getCurrentWindow().close(),
+};
+
+// ================================================================= App ======
 export default function App() {
   const [servers, setServers] = useState<Server[]>(loadServers);
   const [active, setActive] = useState<number>(loadActive);
-  const [theme, setTheme] = useState<Theme>(loadTheme);
-  const [section, setSection] = useState<Section>("play");
-  // null = sem edição; "new" = adicionar; número = editar o servidor daquele índice.
+  const [preset, setPreset] = useState<string>(loadPreset);
+  const [section, setSection] = useState<Section>("dashboard");
   const [editing, setEditing] = useState<number | "new" | null>(null);
 
+  const stats = useSystemStats();
+
   useEffect(() => {
-    applyTheme(theme);
-    localStorage.setItem("aether.launcher.theme", JSON.stringify(theme));
-  }, [theme]);
+    applyPreset(preset);
+    localStorage.setItem(THEME_KEY, preset);
+  }, [preset]);
 
   function persist(next: Server[], nextActive = active) {
     setServers(next);
@@ -218,110 +385,213 @@ export default function App() {
     localStorage.setItem(ACTIVE_KEY, String(a));
   }
 
-  // Sem servidor, ou adicionando/editando: tela de configuração do servidor.
   if (servers.length === 0 || editing !== null) {
     const alvo = typeof editing === "number" ? servers[editing] : null;
     return (
-      <>
-        <UpdateBanner />
-        <SetupScreen
-          initial={alvo}
-          onCancel={servers.length > 0 ? () => setEditing(null) : undefined}
-          onSave={(s) => {
-            if (typeof editing === "number") {
-              const next = servers.map((x, i) => (i === editing ? s : x));
-              persist(next, editing);
-            } else {
-              persist([...servers, s], servers.length);
-            }
-            setEditing(null);
-            setSection("play");
-          }}
-        />
-      </>
+      <SetupScreen
+        initial={alvo}
+        onCancel={servers.length > 0 ? () => setEditing(null) : undefined}
+        onSave={(s) => {
+          if (typeof editing === "number") persist(servers.map((x, i) => (i === editing ? s : x)), editing);
+          else persist([...servers, s], servers.length);
+          setEditing(null);
+          setSection("dashboard");
+        }}
+      />
     );
   }
 
   const current = servers[active] ?? servers[0];
   const patch = (p: Partial<Server>) => persist(servers.map((x, i) => (i === active ? { ...x, ...p } : x)));
 
+  return <Shell
+    servers={servers} active={active} current={current} section={section} preset={preset} stats={stats}
+    onSection={setSection} onPreset={setPreset} onPatch={patch}
+    onSwitch={(i) => { persist(servers, i); setSection("dashboard"); }}
+    onAdd={() => setEditing("new")} onEdit={(i) => setEditing(i)}
+    onRemove={(i) => persist(servers.filter((_, k) => k !== i), active > i ? active - 1 : active)}
+  />;
+}
+
+// ================================================================ Shell =====
+function Shell(props: {
+  servers: Server[]; active: number; current: Server; section: Section; preset: string; stats: SystemStats | null;
+  onSection: (s: Section) => void; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
+  onSwitch: (i: number) => void; onAdd: () => void; onEdit: (i: number) => void; onRemove: (i: number) => void;
+}) {
+  const { current, section, stats } = props;
+  const engine = usePlayEngine(current);
+  const online = engine.info?.state === "running";
+
   return (
-    <>
-      <UpdateBanner />
-      <div className="layout">
+    <div className="app">
+      {/* titlebar */}
+      <div className="titlebar">
+        <div className="brand"><BrandLogo size={22} /><span className="wordmark">Aether</span></div>
+        <button className="srv-switch" onClick={() => props.onSection("servers")} title="Trocar de servidor">
+          <span className={`srv-dot ${online ? "online" : engine.info?.state === "crashed" ? "crashed" : ""}`} />
+          <span className="nm">{current.label || current.server}</span>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+        <div className="tb-drag" data-tauri-drag-region />
+        <div className="win-ctrls">
+          <button onClick={() => win.minimize()} title="Minimizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg></button>
+          <button onClick={() => win.toggleMaximize()} title="Maximizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="5" width="14" height="14" rx="1.5" /></svg></button>
+          <button className="close" onClick={() => win.close()} title="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+        </div>
+      </div>
+
+      {/* corpo */}
+      <div className="body">
         <nav className="sidebar">
-          <div className="brand-mini">
-            <div className="logo" />
-            <span>Aether</span>
+          <div className="nav-group">
+            <span className="eyebrow">Servidor</span>
+            <NavItem icon="dashboard" label="Dashboard" on={section === "dashboard"} onClick={() => props.onSection("dashboard")} />
+            <NavItem icon="content" label="Conteúdo" soon on={section === "content"} onClick={() => props.onSection("content")} />
+            <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
+            <NavItem icon="map" label="Mapa" soon on={section === "map"} onClick={() => props.onSection("map")} />
           </div>
-          <SideItem icon="▶" label="Jogar" active={section === "play"} onClick={() => setSection("play")} />
-          <SideItem icon="🗄" label="Servidores" active={section === "servers"} onClick={() => setSection("servers")} />
-          <SideItem icon="📁" label="Arquivos" active={section === "files"} onClick={() => setSection("files")} />
-          <SideItem icon="⚙" label="Configurações" active={section === "settings"} onClick={() => setSection("settings")} />
-          <SideItem icon="👤" label="Perfil" active={section === "profile"} onClick={() => setSection("profile")} />
-          <div className="side-foot">
-            <div className="side-server" title={current.server}>
-              {current.label || current.server}
+          <div className="nav-group">
+            <span className="eyebrow">Você</span>
+            <NavItem icon="servers" label="Servidores" on={section === "servers"} onClick={() => props.onSection("servers")} />
+            <NavItem icon="skin" label="Skin" on={section === "skin"} onClick={() => props.onSection("skin")} />
+          </div>
+          <div className="sb-foot">
+            <NavItem icon="settings" label="Configurações" on={section === "settings"} onClick={() => props.onSection("settings")} />
+            <div className="acct-chip">
+              <div className="avatar">{current.username.charAt(0).toUpperCase()}</div>
+              <div className="txt">
+                <div className="who">{current.username}</div>
+                <div className="sub">modo offline</div>
+              </div>
             </div>
-            <div className="side-user">{current.username}</div>
           </div>
         </nav>
 
-        <main className="content">
-          {section === "play" && <PlaySection server={current} />}
-          {section === "servers" && (
-            <ServersSection
-              servers={servers}
-              active={active}
-              onSwitch={(i) => {
-                persist(servers, i);
-                setSection("play");
-              }}
-              onAdd={() => setEditing("new")}
-              onEdit={(i) => setEditing(i)}
-              onRemove={(i) => persist(servers.filter((_, k) => k !== i), active > i ? active - 1 : active)}
-            />
-          )}
+        <main className="main">
+          <UpdateBanner />
+          {section === "dashboard" && <DashboardSection server={current} engine={engine} stats={stats} onConfig={() => props.onSection("settings")} />}
+          {section === "content" && <SoonSection title="Conteúdo" lead="Instalar shaders e texturas do Modrinth — do lado do cliente, sem afetar o servidor." items={["buscar e instalar shaders em shaderpacks/", "buscar e instalar texturas em resourcepacks/", "compatibilidade com a versão do servidor"]} />}
           {section === "files" && <FilesSection server={current} />}
-          {section === "settings" && (
-            <SettingsSection server={current} theme={theme} onTheme={setTheme} onPatch={patch} />
-          )}
-          {section === "profile" && <ProfileSection server={current} onPatch={patch} />}
+          {section === "map" && <SoonSection title="Mapa" lead="Ver o mundo e as construções direto no launcher." items={["mapa ao vivo via BlueMap no servidor (preferencial)", "ou ler o JourneyMap do seu PC (o que você explorou)", "opcional, ligado por servidor"]} />}
+          {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
+          {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
+          {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} />}
         </main>
       </div>
-    </>
+
+      {/* status bar */}
+      <div className="statusbar">
+        <span className="si" title="uso do seu computador"><Icon n="cpu" />CPU {stats ? Math.round(stats.cpu) : "—"}%</span>
+        <span className="si" title="uso do seu computador"><Icon n="ram" />RAM {stats ? `${(stats.mem_used / 1024 ** 3).toFixed(1)}/${(stats.mem_total / 1024 ** 3).toFixed(0)} GB` : "—"}</span>
+        <span className="sp" />
+        {engine.busy && <span className="si">{engine.activity?.label ?? "Trabalhando…"}</span>}
+        <span className="si">{STATE_LABEL[engine.info?.state ?? "unknown"] ?? "—"}</span>
+        <span className="si">{current.username}</span>
+      </div>
+    </div>
   );
 }
 
-function SideItem({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: string;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: string; on: boolean; soon?: boolean; onClick: () => void }) {
   return (
-    <button className={`side-item ${active ? "active" : ""}`} onClick={onClick}>
-      <span className="side-ico">{icon}</span>
-      {label}
+    <button className={`nav ${on ? "on" : ""}`} onClick={onClick}>
+      <Icon n={icon} /><span>{label}</span>
+      {soon && <span className="soon-tag">breve</span>}
     </button>
   );
 }
 
-// -------------------------------------------------------------- Setup/Server --
-function SetupScreen({
-  initial,
-  onSave,
-  onCancel,
-}: {
-  initial: Server | null;
-  onSave: (s: Server) => void;
-  onCancel?: () => void;
-}) {
+// ============================================================ Dashboard =====
+function DashboardSection({ server, engine, stats, onConfig }: { server: Server; engine: Engine; stats: SystemStats | null; onConfig: () => void }) {
+  const { info, plan, busy, activity, log, error } = engine;
+  const [showLog, setShowLog] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }, [log, showLog]);
+
+  const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
+  const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
+  const memPct = stats ? (stats.mem_used / stats.mem_total) * 100 : 0;
+
+  return (
+    <div className="page">
+      <div className="banner">
+        <div className="brow">Servidor</div>
+        <div className="banner-row">
+          <div>
+            <h3>{info?.instance_name ?? server.label ?? "Conectando…"}</h3>
+            <p className="desc">Sincronize, entre e continue de onde parou.</p>
+            <div className="chips">
+              {info && <span className="bchip"><span className={`srv-dot ${stateClass}`} />{STATE_LABEL[info.state] ?? info.state}</span>}
+              {info && <span className="bchip">{info.channel}</span>}
+              {info && <span className="bchip">{info.files} arquivos</span>}
+              {info && <span className="bchip">{formatBytes(info.total_size)}</span>}
+            </div>
+          </div>
+          <div className="cta">
+            <button className="g-btn" title="Configurações" disabled={busy} onClick={onConfig}>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /></svg>
+            </button>
+            <button className="play" disabled={busy} onClick={engine.playNow}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 5v14l11-7z" /></svg>
+              {busy ? "Trabalhando…" : "Jogar"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid widgets">
+        <div className="card widget">
+          <div className="wl"><Icon n="cpu" />CPU · seu PC</div>
+          <div className="wv tnum">{stats ? Math.round(stats.cpu) : "—"}<small>%</small></div>
+          <div className="mini-track"><i style={{ width: `${stats ? Math.min(100, stats.cpu) : 0}%` }} /></div>
+        </div>
+        <div className="card widget">
+          <div className="wl"><Icon n="ram" />RAM · seu PC</div>
+          <div className="wv tnum">{stats ? (stats.mem_used / 1024 ** 3).toFixed(1) : "—"}<small> / {stats ? (stats.mem_total / 1024 ** 3).toFixed(0) : "—"} GB</small></div>
+          <div className="mini-track"><i style={{ width: `${memPct}%` }} /></div>
+        </div>
+        <div className="card widget">
+          <div className="wl"><Icon n="server" />Servidor</div>
+          <div className="wv" style={{ fontSize: 20 }}>{STATE_LABEL[info?.state ?? "unknown"] ?? "—"}</div>
+          <div className="hint" style={{ marginTop: 8 }}>{info ? `perfil "${info.profile_name}"` : server.server}</div>
+        </div>
+      </div>
+
+      <div className="row" style={{ marginTop: 16 }}>
+        <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
+        <button className="btn" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
+      </div>
+
+      {activity && (
+        <div className="activity">
+          <div className="activity-head">
+            <span className="activity-label">{activity.label}</span>
+            <span className="activity-detail">{activity.detail}</span>
+            {pct !== null && <span className="activity-pct">{pct}%</span>}
+          </div>
+          <div className="progress-track">
+            <div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} />
+          </div>
+        </div>
+      )}
+
+      {plan?.synced && !busy && !activity && <p className="ok">✔ Tudo sincronizado com o servidor.</p>}
+      {error && <p className="error">{error}</p>}
+
+      <div className="log-toggle">
+        <button className="btn ghost" onClick={() => setShowLog((v) => !v)}>{showLog ? "▾ Ocultar detalhes" : "▸ Mostrar detalhes"}</button>
+      </div>
+      {showLog && <div className="log" ref={logRef}>{log.join("\n") || "Pronto. Clique em Jogar para sincronizar e abrir o jogo."}</div>}
+    </div>
+  );
+}
+
+// =============================================================== Setup ======
+function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void }) {
   const [server, setServer] = useState(initial?.server ?? "");
   const [profileId, setProfileId] = useState(initial?.profileId ?? "");
   const [dir, setDir] = useState(initial?.dir ?? "");
@@ -335,36 +605,20 @@ function SetupScreen({
   }
 
   async function save() {
-    setError("");
-    setTesting(true);
+    setError(""); setTesting(true);
     try {
-      const info = await invoke<ServerInfo>("server_info", {
-        server: server.trim(),
-        profileId: profileId.trim(),
-      });
-      onSave({
-        server: server.trim(),
-        profileId: profileId.trim(),
-        dir,
-        username: username.trim(),
-        memoryMb: initial?.memoryMb,
-        label: info.instance_name,
-      });
+      const info = await invoke<ServerInfo>("server_info", { server: server.trim(), profileId: profileId.trim() });
+      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name });
     } catch (e) {
       setError(String(e));
-    } finally {
-      setTesting(false);
-    }
+    } finally { setTesting(false); }
   }
 
   const valido = server.trim() && profileId.trim() && dir && username.trim();
 
   return (
-    <div className="shell center">
-      <div className="brand">
-        <div className="logo" />
-        <h1>{initial ? "Editar servidor" : "Aether Launcher"}</h1>
-      </div>
+    <div className="setup">
+      <div className="brand"><BrandLogo size={30} /><h1>{initial ? "Editar servidor" : "Aether Launcher"}</h1></div>
       <div className="card">
         <div className="field">
           <label>Endereço do servidor</label>
@@ -372,11 +626,7 @@ function SetupScreen({
         </div>
         <div className="field">
           <label>Código do perfil (peça ao admin)</label>
-          <input
-            placeholder="ex.: 2f1c93e869ee4563b98093abd9ad54b6"
-            value={profileId}
-            onChange={(e) => setProfileId(e.target.value)}
-          />
+          <input placeholder="ex.: 2f1c93e869ee4563b98093abd9ad54b6" value={profileId} onChange={(e) => setProfileId(e.target.value)} />
         </div>
         <div className="field">
           <label>Nome do jogador</label>
@@ -386,17 +636,13 @@ function SetupScreen({
           <label>Pasta do jogo</label>
           <div className="row">
             <input placeholder="C:\...\.minecraft" value={dir} readOnly />
-            <button onClick={pickDir}>Escolher…</button>
+            <button className="btn" onClick={pickDir}>Escolher…</button>
           </div>
         </div>
         {error && <p className="error">{error}</p>}
-        <div className="row" style={{ marginTop: 4 }}>
-          {onCancel && (
-            <button onClick={onCancel} disabled={testing}>
-              Cancelar
-            </button>
-          )}
-          <button className="primary big" disabled={!valido || testing} onClick={save}>
+        <div className="row" style={{ marginTop: 6 }}>
+          {onCancel && <button className="btn" onClick={onCancel} disabled={testing}>Cancelar</button>}
+          <button className="btn primary lg" style={{ flex: 1 }} disabled={!valido || testing} onClick={save}>
             {testing ? "Verificando…" : initial ? "Salvar" : "Conectar"}
           </button>
         </div>
@@ -405,225 +651,15 @@ function SetupScreen({
   );
 }
 
-// ---------------------------------------------------------------- Jogar --
-function PlaySection({ server }: { server: Server }) {
-  const [info, setInfo] = useState<ServerInfo | null>(null);
-  const [plan, setPlan] = useState<PlanSummary | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [activity, setActivity] = useState<Activity | null>(null);
-  const [log, setLog] = useState<string[]>([]);
-  const [showLog, setShowLog] = useState(false);
-  const [error, setError] = useState("");
-  const logRef = useRef<HTMLDivElement>(null);
-
-  function pushLog(line: string) {
-    setLog((prev) => [...prev.slice(-300), line]);
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = () =>
-      invoke<ServerInfo>("server_info", { server: server.server, profileId: server.profileId })
-        .then((i) => !cancelled && setInfo(i))
-        .catch((e) => !cancelled && setError(String(e)));
-    load();
-    const timer = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [server.server, server.profileId]);
-
-  useEffect(() => {
-    const unlisten = listen<PlayProgress>("play-progress", (event) => {
-      const p = event.payload;
-      const label = PLAY_STAGE[p.stage] ?? p.stage;
-      setActivity({ label, detail: p.detail, done: p.done, total: p.total });
-      pushLog(p.total > 0 ? `${label}: ${p.detail} (${p.done}/${p.total})` : `${label}: ${p.detail}`);
-      if (p.stage === "closed" && p.detail.includes("erro")) setError(`${label}: ${p.detail}`);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
-    const unlisten = listen<SyncProgress>("sync-progress", (event) => {
-      const p = event.payload;
-      const label = p.stage === "retire" ? "Removendo" : p.stage === "done" ? "Sincronizado" : "Baixando";
-      setActivity({ label, detail: p.path, done: p.done, total: p.total });
-      if (p.stage === "download") pushLog(`baixado  ${p.path}`);
-      if (p.stage === "retire") pushLog(`removido ${p.path}`);
-      if (p.stage === "done") pushLog("— sincronização concluída —");
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
-    if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log, showLog]);
-
-  async function playNow() {
-    setBusy(true);
-    setError("");
-    setActivity({ label: "Preparando", detail: "sincronizando", done: 0, total: 0 });
-    try {
-      pushLog("— sincronizando antes de jogar —");
-      await invoke<PlanSummary>("run_sync", {
-        server: server.server,
-        profileId: server.profileId,
-        dir: server.dir,
-        includeOptional: false,
-      });
-      pushLog("— preparando o jogo —");
-      const result = await invoke<{ version: string; pid: number }>("play", {
-        server: server.server,
-        profileId: server.profileId,
-        dir: server.dir,
-        username: server.username,
-        memoryMb: server.memoryMb ?? null,
-      });
-      pushLog(`Minecraft ${result.version} aberto (pid ${result.pid}). Bom jogo!`);
-      setActivity({ label: "Jogo iniciado", detail: "bom jogo!", done: 1, total: 1 });
-    } catch (e) {
-      setError(String(e));
-      pushLog(`ERRO: ${e}`);
-      setActivity(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function check_() {
-    setBusy(true);
-    setError("");
-    try {
-      const result = await invoke<PlanSummary>("check_sync", {
-        server: server.server,
-        profileId: server.profileId,
-        dir: server.dir,
-        includeOptional: false,
-      });
-      setPlan(result);
-      pushLog(
-        `verificado: ${result.download.length} para baixar (${formatBytes(result.download_size)}), ` +
-          `${result.retire.length} para remover, ${result.keep} corretos`,
-      );
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sync() {
-    setBusy(true);
-    setError("");
-    setActivity({ label: "Sincronizando", detail: "", done: 0, total: 0 });
-    try {
-      const result = await invoke<PlanSummary>("run_sync", {
-        server: server.server,
-        profileId: server.profileId,
-        dir: server.dir,
-        includeOptional: false,
-      });
-      setPlan({ ...result, synced: true, download: [], retire: [] });
-    } catch (e) {
-      setError(String(e));
-      pushLog(`ERRO: ${e}`);
-      setActivity(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
-  const stateClass =
-    info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
-
-  return (
-    <div className="page">
-      <div className="server-head">
-        <span className="name">{info?.instance_name ?? server.label ?? "Conectando…"}</span>
-        {info && <span className={`badge ${stateClass}`}>{STATE_LABEL[info.state] ?? info.state}</span>}
-        {info && <span className="badge">{info.channel}</span>}
-      </div>
-      <p className="meta">
-        {info
-          ? `Perfil "${info.profile_name}" · ${info.files} arquivos · ${formatBytes(info.total_size)}`
-          : server.server}
-      </p>
-
-      <button className="primary play" disabled={busy} onClick={playNow}>
-        {busy ? "Trabalhando…" : "▶  Jogar"}
-      </button>
-      <div className="row" style={{ marginTop: 8 }}>
-        <button disabled={busy} onClick={sync}>
-          Sincronizar
-        </button>
-        <button disabled={busy} onClick={check_}>
-          Verificar
-        </button>
-      </div>
-
-      {activity && (
-        <div className="activity">
-          <div className="activity-head">
-            <span className="activity-label">{activity.label}</span>
-            <span className="activity-detail">{activity.detail}</span>
-            {pct !== null && <span className="activity-pct">{pct}%</span>}
-          </div>
-          <div className="progress-track">
-            <div
-              className={`progress-fill ${pct === null ? "indeterminate" : ""}`}
-              style={pct !== null ? { width: `${pct}%` } : undefined}
-            />
-          </div>
-        </div>
-      )}
-
-      {plan?.synced && !busy && !activity && <p className="ok">✔ Tudo sincronizado com o servidor.</p>}
-      {error && <p className="error">{error}</p>}
-
-      <div className="log-toggle">
-        <button className="ghost" onClick={() => setShowLog((v) => !v)}>
-          {showLog ? "▾ Ocultar detalhes" : "▸ Mostrar detalhes"}
-        </button>
-      </div>
-      {showLog && (
-        <div className="log" ref={logRef}>
-          {log.join("\n") || "Pronto. Clique em Jogar para sincronizar e abrir o jogo."}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ------------------------------------------------------------- Servidores --
-function ServersSection({
-  servers,
-  active,
-  onSwitch,
-  onAdd,
-  onEdit,
-  onRemove,
-}: {
-  servers: Server[];
-  active: number;
-  onSwitch: (i: number) => void;
-  onAdd: () => void;
-  onEdit: (i: number) => void;
-  onRemove: (i: number) => void;
+// ============================================================ Servidores ====
+function ServersSection({ servers, active, onSwitch, onAdd, onEdit, onRemove }: {
+  servers: Server[]; active: number; onSwitch: (i: number) => void; onAdd: () => void; onEdit: (i: number) => void; onRemove: (i: number) => void;
 }) {
   return (
     <div className="page">
       <div className="page-head">
         <h2>Servidores</h2>
-        <button className="primary" onClick={onAdd}>
-          + Adicionar
-        </button>
+        <div className="actions"><button className="btn primary" onClick={onAdd}>+ Adicionar</button></div>
       </div>
       <div className="server-list">
         {servers.map((s, i) => (
@@ -633,18 +669,10 @@ function ServersSection({
                 {s.label || s.server}
                 {i === active && <span className="badge online" style={{ marginLeft: 8 }}>ativo</span>}
               </div>
-              <div className="server-sub">
-                {s.server} · {s.username}
-              </div>
+              <div className="server-sub">{s.server} · {s.username}</div>
             </button>
-            <button className="ghost" title="Editar" onClick={() => onEdit(i)}>
-              ✎
-            </button>
-            {servers.length > 1 && (
-              <button className="ghost" title="Remover" onClick={() => onRemove(i)}>
-                🗑
-              </button>
-            )}
+            <button className="btn ghost" title="Editar" onClick={() => onEdit(i)}>✎</button>
+            {servers.length > 1 && <button className="btn ghost" title="Remover" onClick={() => onRemove(i)}>🗑</button>}
           </div>
         ))}
       </div>
@@ -652,41 +680,20 @@ function ServersSection({
   );
 }
 
-// --------------------------------------------------------------- Arquivos --
-interface FsEntry {
-  name: string;
-  rel: string;
-  is_dir: boolean;
-  size: number;
-}
+// ============================================================== Arquivos ====
+interface FsEntry { name: string; rel: string; is_dir: boolean; size: number; }
+interface ManagedDto { files: string[]; managed_dirs: { dir: string; patterns: string[]; recursive: boolean }[]; }
+interface ManagedInfo { files: Set<string>; dirs: { dir: string; patterns: string[]; recursive: boolean }[]; online: boolean; }
 
-interface ManagedDto {
-  files: string[];
-  managed_dirs: { dir: string; patterns: string[]; recursive: boolean }[];
-}
-
-interface ManagedInfo {
-  files: Set<string>;
-  dirs: { dir: string; patterns: string[]; recursive: boolean }[];
-  online: boolean;
-}
-
-const TEXT_EXT = new Set([
-  "txt", "json", "json5", "toml", "cfg", "conf", "ini", "properties", "yml", "yaml",
-  "log", "md", "mcmeta", "lang", "csv", "xml", "html", "css", "js", "sh", "bat",
-]);
-
+const TEXT_EXT = new Set(["txt", "json", "json5", "toml", "cfg", "conf", "ini", "properties", "yml", "yaml", "log", "md", "mcmeta", "lang", "csv", "xml", "html", "css", "js", "sh", "bat"]);
 function isEditable(name: string, size: number): boolean {
   const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
   return TEXT_EXT.has(ext) && size <= 1024 * 1024;
 }
-
-function joinRel(base: string, name: string): string {
-  return base ? `${base}/${name}` : name;
-}
+function joinRel(base: string, name: string): string { return base ? `${base}/${name}` : name; }
 
 function FilesSection({ server }: { server: Server }) {
-  const [path, setPath] = useState(""); // pasta atual, relativa à pasta do jogo
+  const [path, setPath] = useState("");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [managed, setManaged] = useState<ManagedInfo>({ files: new Set(), dirs: [], online: true });
   const [busy, setBusy] = useState(false);
@@ -699,28 +706,17 @@ function FilesSection({ server }: { server: Server }) {
     setError("");
     try {
       const rows = await invoke<FsEntry[]>("fs_list", { dir: server.dir, rel: p });
-      setEntries(rows);
-      setPath(p);
-    } catch (e) {
-      setError(String(e));
-    }
+      setEntries(rows); setPath(p);
+    } catch (e) { setError(String(e)); }
   }
 
-  // Ao abrir a seção (ou trocar de servidor): busca o manifesto uma vez para
-  // saber o que é do servidor, e lista a raiz.
   useEffect(() => {
     let cancelled = false;
     invoke<ManagedDto>("fs_manifest", { server: server.server, profileId: server.profileId })
-      .then((m) => {
-        if (!cancelled) setManaged({ files: new Set(m.files), dirs: m.managed_dirs, online: true });
-      })
-      .catch(() => {
-        if (!cancelled) setManaged({ files: new Set(), dirs: [], online: false });
-      });
+      .then((m) => { if (!cancelled) setManaged({ files: new Set(m.files), dirs: m.managed_dirs, online: true }); })
+      .catch(() => { if (!cancelled) setManaged({ files: new Set(), dirs: [], online: false }); });
     list("");
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.server, server.profileId, server.dir]);
 
@@ -733,103 +729,58 @@ function FilesSection({ server }: { server: Server }) {
   async function doDelete(e: FsEntry) {
     if (!confirm(`Mover "${e.name}" para a lixeira do launcher?`)) return;
     setBusy(true);
-    try {
-      await invoke("fs_delete", { dir: server.dir, rel: e.rel });
-      await list(path);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
+    try { await invoke("fs_delete", { dir: server.dir, rel: e.rel }); await list(path); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
   async function openEntry(e: FsEntry) {
-    if (e.is_dir) {
-      list(e.rel);
-      return;
-    }
+    if (e.is_dir) { list(e.rel); return; }
     if (!isEditable(e.name, e.size)) return;
-    setBusy(true);
-    setError("");
+    setBusy(true); setError("");
     try {
       const content = await invoke<string>("fs_read", { dir: server.dir, rel: e.rel });
       setEditing({ rel: e.rel, name: e.name, content, readOnly: isManagedFile(e.rel) });
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
   async function saveEdit() {
     if (!editing) return;
     setBusy(true);
-    try {
-      await invoke("fs_write", { dir: server.dir, rel: editing.rel, contents: editing.content });
-      setEditing(null);
-      await list(path);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
+    try { await invoke("fs_write", { dir: server.dir, rel: editing.rel, contents: editing.content }); setEditing(null); await list(path); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
   async function create() {
     const name = newName.trim();
     if (!name) return;
-    if (/[\\/:*?"<>|]/.test(name)) {
-      setError('Nome inválido: evite \\ / : * ? " < > |');
-      return;
-    }
-    setBusy(true);
-    setError("");
+    if (/[\\/:*?"<>|]/.test(name)) { setError('Nome inválido: evite \\ / : * ? " < > |'); return; }
+    setBusy(true); setError("");
     try {
       const rel = joinRel(path, name);
       await invoke(creating === "folder" ? "fs_mkdir" : "fs_touch", { dir: server.dir, rel });
-      setCreating(null);
-      setNewName("");
-      await list(path);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
+      setCreating(null); setNewName(""); await list(path);
+    } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
 
   async function openInExplorer() {
-    try {
-      const abs = await invoke<string>("fs_abs_path", { dir: server.dir, rel: path });
-      await openPath(abs);
-    } catch (err) {
-      setError(String(err));
-    }
+    try { const abs = await invoke<string>("fs_abs_path", { dir: server.dir, rel: path }); await openPath(abs); }
+    catch (err) { setError(String(err)); }
   }
 
   const crumbs = path ? path.split("/") : [];
 
   if (editing) {
     return (
-      <div className="page files-editor">
+      <div className="page">
         <div className="page-head">
           <h2>{editing.name}{editing.readOnly && <span className="badge" style={{ marginLeft: 8 }}>servidor · leitura</span>}</h2>
-          <div className="row">
-            <button onClick={() => setEditing(null)}>Voltar</button>
-            {!editing.readOnly && (
-              <button className="primary" disabled={busy} onClick={saveEdit}>
-                Salvar
-              </button>
-            )}
+          <div className="actions">
+            <button className="btn" onClick={() => setEditing(null)}>Voltar</button>
+            {!editing.readOnly && <button className="btn primary" disabled={busy} onClick={saveEdit}>Salvar</button>}
           </div>
         </div>
         <p className="meta">{editing.rel}</p>
-        <textarea
-          className="code-edit"
-          value={editing.content}
-          readOnly={editing.readOnly}
-          spellCheck={false}
-          onChange={(ev) => setEditing({ ...editing, content: ev.target.value })}
-        />
+        <textarea className="code-edit" value={editing.content} readOnly={editing.readOnly} spellCheck={false} onChange={(ev) => setEditing({ ...editing, content: ev.target.value })} />
         {error && <p className="error">{error}</p>}
       </div>
     );
@@ -839,64 +790,31 @@ function FilesSection({ server }: { server: Server }) {
     <div className="page">
       <div className="page-head">
         <h2>Arquivos</h2>
-        <button className="ghost" onClick={openInExplorer}>
-          Abrir no explorador
-        </button>
+        <div className="actions"><button className="btn ghost" onClick={openInExplorer}>Abrir no explorador</button></div>
       </div>
 
       <div className="crumbs">
-        <button className="crumb" onClick={() => list("")}>
-          Pasta do jogo
-        </button>
+        <button className="crumb" onClick={() => list("")}>Pasta do jogo</button>
         {crumbs.map((c, i) => (
-          <span key={i}>
-            <span className="crumb-sep">›</span>
-            <button className="crumb" onClick={() => list(crumbs.slice(0, i + 1).join("/"))}>
-              {c}
-            </button>
-          </span>
+          <span key={i}><span className="crumb-sep">›</span><button className="crumb" onClick={() => list(crumbs.slice(0, i + 1).join("/"))}>{c}</button></span>
         ))}
       </div>
 
-      {!managed.online && (
-        <p className="hint" style={{ marginBottom: 10 }}>
-          Sem conexão com o servidor: não dá para marcar quais arquivos são sincronizados. Cuidado ao editar.
-        </p>
-      )}
-      {inRetireZone && (
-        <div className="warn-box">
-          ⚠ Esta pasta é sincronizada pelo servidor. Arquivos que você adicionar aqui podem ser removidos na próxima sincronização.
-        </div>
-      )}
+      {!managed.online && <p className="hint" style={{ marginBottom: 10 }}>Sem conexão com o servidor: não dá para marcar quais arquivos são sincronizados. Cuidado ao editar.</p>}
+      {inRetireZone && <div className="warn-box">⚠ Esta pasta é sincronizada pelo servidor. Arquivos que você adicionar aqui podem ser removidos na próxima sincronização.</div>}
 
       <div className="toolbar">
-        {path && (
-          <button onClick={() => list(crumbs.slice(0, -1).join("/"))}>↑ Voltar</button>
-        )}
-        <button disabled={busy} onClick={() => { setCreating("folder"); setNewName(""); }}>
-          + Pasta
-        </button>
-        <button disabled={busy} onClick={() => { setCreating("file"); setNewName(""); }}>
-          + Arquivo
-        </button>
-        <button className="ghost" disabled={busy} onClick={() => list(path)}>
-          Atualizar
-        </button>
+        {path && <button onClick={() => list(crumbs.slice(0, -1).join("/"))}>↑ Voltar</button>}
+        <button disabled={busy} onClick={() => { setCreating("folder"); setNewName(""); }}>+ Pasta</button>
+        <button disabled={busy} onClick={() => { setCreating("file"); setNewName(""); }}>+ Arquivo</button>
+        <button className="ghost" disabled={busy} onClick={() => list(path)}>Atualizar</button>
       </div>
 
       {creating && (
         <div className="row create-row">
-          <input
-            autoFocus
-            placeholder={creating === "folder" ? "nome da pasta" : "nome do arquivo (ex.: notas.txt)"}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && create()}
-          />
-          <button className="primary" disabled={busy || !newName.trim()} onClick={create}>
-            Criar
-          </button>
-          <button onClick={() => setCreating(null)}>Cancelar</button>
+          <input autoFocus placeholder={creating === "folder" ? "nome da pasta" : "nome do arquivo (ex.: notas.txt)"} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
+          <button className="btn primary" disabled={busy || !newName.trim()} onClick={create}>Criar</button>
+          <button className="btn" onClick={() => setCreating(null)}>Cancelar</button>
         </div>
       )}
 
@@ -908,42 +826,26 @@ function FilesSection({ server }: { server: Server }) {
           const locked = e.is_dir ? folderHasServer(e.rel) : isManagedFile(e.rel);
           const editable = !e.is_dir && isEditable(e.name, e.size);
           return (
-            <div key={e.rel} className={`file-row ${e.is_dir || editable ? "clickable" : ""}`}>
+            <div key={e.rel} className="file-row">
               <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
                 <span className="file-ico">{e.is_dir ? "📁" : editable ? "📄" : "▪"}</span>
                 <span className="file-name">{e.name}</span>
                 {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
                 {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
               </button>
-              {!locked && (
-                <button className="ghost file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>
-                  🗑
-                </button>
-              )}
+              {!locked && <button className="file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>🗑</button>}
             </div>
           );
         })}
       </div>
 
-      <p className="hint" style={{ marginTop: 14 }}>
-        Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira do launcher (recuperável), nunca é apagado de vez.
-      </p>
+      <p className="hint" style={{ marginTop: 14 }}>Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira do launcher (recuperável), nunca é apagado de vez.</p>
     </div>
   );
 }
 
-// ----------------------------------------------------------- Configurações --
-function SettingsSection({
-  server,
-  theme,
-  onTheme,
-  onPatch,
-}: {
-  server: Server;
-  theme: Theme;
-  onTheme: (t: Theme) => void;
-  onPatch: (p: Partial<Server>) => void;
-}) {
+// =========================================================== Configurações ==
+function SettingsSection({ server, preset, onPreset, onPatch }: { server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void }) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
 
   async function pickDir() {
@@ -954,91 +856,91 @@ function SettingsSection({
   return (
     <div className="page">
       <h2>Configurações</h2>
+      <div className="meta">Ajustes do launcher e do jogo</div>
 
       <div className="setting">
-        <label>Tema</label>
-        <div className="theme-modes">
-          <button className={theme.mode === "dark" ? "seg active" : "seg"} onClick={() => onTheme({ ...theme, mode: "dark" })}>
-            🌙 Escuro
-          </button>
-          <button className={theme.mode === "light" ? "seg active" : "seg"} onClick={() => onTheme({ ...theme, mode: "light" })}>
-            ☀ Claro
-          </button>
-        </div>
-        <div className="swatches">
-          {ACCENTS.map((a) => (
-            <button
-              key={a.id}
-              title={a.label}
-              className={`swatch ${theme.accent === a.id ? "active" : ""}`}
-              style={{ background: a.id }}
-              onClick={() => onTheme({ ...theme, accent: a.id })}
-            />
+        <label>Tema — a paleta reveste o app inteiro</label>
+        <div className="theme-presets">
+          {Object.entries(PRESETS).map(([id, p]) => (
+            <button key={id} className={`tpreset ${preset === id ? "on" : ""}`} onClick={() => onPreset(id)}>
+              <span className="tp-prev">
+                <i className="pv-bg" style={{ background: p.bg }} />
+                <i className="pv-card" style={{ background: p.card }} />
+                <i className="pv-dot" style={{ background: p.dot }} />
+              </span>
+              {p.label}
+            </button>
           ))}
         </div>
       </div>
 
       <div className="setting">
         <label>Memória do jogo — {memGb.toFixed(1)} GB</label>
-        <input
-          type="range"
-          min={1}
-          max={16}
-          step={0.5}
-          value={memGb}
-          onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })}
-        />
+        <input type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
         <p className="hint">Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p>
       </div>
 
       <div className="setting">
         <label>Pasta do jogo</label>
         <div className="row">
-          <input value={server.dir} readOnly />
-          <button onClick={pickDir}>Escolher…</button>
+          <input type="text" value={server.dir} readOnly />
+          <button className="btn" onClick={pickDir}>Escolher…</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------- Perfil --
-function ProfileSection({ server, onPatch }: { server: Server; onPatch: (p: Partial<Server>) => void }) {
+// ================================================================ Skin ======
+function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial<Server>) => void }) {
   const [nick, setNick] = useState(server.username);
+  useEffect(() => setNick(server.username), [server.username]);
 
   return (
     <div className="page">
-      <h2>Perfil</h2>
-      <div className="avatar-block">
-        <div className="avatar-big">{server.username.charAt(0).toUpperCase()}</div>
+      <h2>Skin</h2>
+      <div className="meta">Sua aparência dentro do jogo</div>
+
+      <div className="skin-split">
+        <div className="skin-stage">
+          <div className="mc">
+            <div className="part head"><div className="face"><i /><i /></div></div>
+            <div className="arms"><span className="arm" /><span className="arm" /></div>
+            <div className="part torso" />
+            <div className="legs"><span className="leg" /><span className="leg" /></div>
+          </div>
+        </div>
         <div>
-          <div className="server-name">{server.username}</div>
-          <div className="meta">Jogador neste servidor</div>
+          <div className="set-row">
+            <div className="txt"><h5>Nome do jogador</h5><p>A grafia precisa ser igual à da whitelist do servidor (maiúsculas contam, em modo offline).</p></div>
+            <div className="ctl row">
+              <input type="text" style={{ width: 160 }} value={nick} onChange={(e) => setNick(e.target.value)} />
+              <button className="btn primary" disabled={!nick.trim() || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar</button>
+            </div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Skin personalizada</h5><p>Chega numa próxima atualização.</p></div>
+            <div className="ctl"><button className="btn" disabled>Enviar skin</button></div>
+          </div>
+          <div className="soon" style={{ marginTop: 16 }}>
+            Em servidores no modo offline, a skin só aparece para os outros com um mod de skins (ex.: <code>CustomSkinLoader</code>) no pacote. O launcher vai cuidar de instalar e apontar para a sua skin quando o servidor tiver esse suporte.
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="setting">
-        <label>Nome do jogador</label>
-        <div className="row">
-          <input value={nick} onChange={(e) => setNick(e.target.value)} />
-          <button
-            className="primary"
-            disabled={!nick.trim() || nick.trim() === server.username}
-            onClick={() => onPatch({ username: nick.trim() })}
-          >
-            Salvar
-          </button>
-        </div>
-        <p className="hint">
-          A grafia precisa ser igual à da whitelist do servidor (maiúsculas contam, em modo offline).
-        </p>
-      </div>
-
-      <div className="soon" style={{ marginTop: 16 }}>
-        <p>Skin personalizada chega numa próxima atualização.</p>
-        <p className="meta">
-          Em modo offline, skin exige um mod de skins no servidor — vamos desenhar isso com cuidado.
-        </p>
+// ============================================================== Em breve ====
+function SoonSection({ title, lead, items }: { title: string; lead: string; items: string[] }) {
+  return (
+    <div className="page">
+      <h2>{title}</h2>
+      <div className="meta">{lead}</div>
+      <div className="soon">
+        <h4>Em construção</h4>
+        <p className="hint">Esta parte do redesign chega numa próxima atualização — o launcher se atualiza sozinho.</p>
+        <ul>{items.map((it, i) => <li key={i}>{it}</li>)}</ul>
       </div>
     </div>
   );

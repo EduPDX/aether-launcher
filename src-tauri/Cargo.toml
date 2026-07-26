@@ -1,6 +1,6 @@
 [package]
 name = "launcher"
-version = "0.2.3"
+version = "0.3.0"
 description = "Aether Launcher"
 authors = ["Aether Platform"]
 edition = "2021"
@@ -33,3 +33,4 @@ thiserror = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sha1 = "0.10"
 md-5 = "0.10"
+sysinfo = "0.33"
