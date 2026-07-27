@@ -1153,34 +1153,50 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
       <div className="meta">Sua aparência dentro do jogo</div>
 
       <div className="skin-split">
-        <div className="skin-stage">
-          {hasSkin ? (
-            <div className="skin-face" style={{ backgroundImage: `url("${skinUrl}")` }} title="sua skin" />
-          ) : (
-            <div className="mc">
-              <div className="part head"><div className="face"><i /><i /></div></div>
-              <div className="arms"><span className="arm" /><span className="arm" /></div>
-              <div className="part torso" />
-              <div className="legs"><span className="leg" /><span className="leg" /></div>
-            </div>
-          )}
+        <div className="skin-preview">
+          <div className="skin-stage">
+            {hasSkin ? (
+              <div className="skin-face" style={{ backgroundImage: `url("${skinUrl}")` }} title="sua skin" />
+            ) : (
+              <div className="mc">
+                <div className="part head"><div className="face"><i /><i /></div></div>
+                <div className="arms"><span className="arm" /><span className="arm" /></div>
+                <div className="part torso" />
+                <div className="legs"><span className="leg" /><span className="leg" /></div>
+              </div>
+            )}
+          </div>
+          <div className={`skin-status ${hasSkin ? "on" : ""}`}>
+            {hasSkin === null ? "verificando…" : hasSkin ? "✔ Skin ativa" : "Nenhuma skin enviada"}
+          </div>
         </div>
-        <div>
-          <div className="set-row">
-            <div className="txt"><h5>Nome do jogador</h5><p>A grafia precisa ser igual à da whitelist do servidor (maiúsculas contam, em modo offline).</p></div>
-            <div className="ctl row">
-              <input type="text" style={{ width: 160 }} value={nick} onChange={(e) => setNick(e.target.value)} />
-              <button className="btn primary" disabled={!nick.trim() || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar</button>
+
+        <div className="skin-controls">
+          {/* Ação principal: a skin. */}
+          <div className="setting">
+            <label>Skin do jogo</label>
+            <p className="hint" style={{ marginBottom: 12 }}>
+              Envie um PNG de skin (64×64). Fica hospedada no servidor; com o mod de skins ativo, todos veem.
+            </p>
+            <button className="btn primary lg" style={{ width: "100%" }} disabled={uploading} onClick={pickAndUpload}>
+              {uploading ? "Enviando…" : hasSkin ? "Trocar minha skin" : "Enviar minha skin"}
+            </button>
+            {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
+            {ok && <p className="ok" style={{ marginTop: 10 }}>{ok}</p>}
+          </div>
+
+          {/* Separado e rotulado: o nome do jogador (não é a skin). */}
+          <div className="setting">
+            <label>Nome do jogador</label>
+            <div className="row">
+              <input type="text" style={{ flex: 1 }} value={nick} onChange={(e) => setNick(e.target.value)} />
+              <button className="btn" disabled={!nick.trim() || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar nome</button>
             </div>
+            <p className="hint">Igual à whitelist (maiúsculas contam, modo offline). É por este nome que a skin é encontrada.</p>
           </div>
-          <div className="set-row">
-            <div className="txt"><h5>Skin personalizada</h5><p>Envie um PNG de skin (64×64). Fica hospedada no servidor e todos com o mod de skins veem.</p></div>
-            <div className="ctl"><button className="btn primary" disabled={uploading} onClick={pickAndUpload}>{uploading ? "Enviando…" : hasSkin ? "Trocar skin" : "Enviar skin"}</button></div>
-          </div>
-          {error && <p className="error">{error}</p>}
-          {ok && <p className="ok">{ok}</p>}
-          <div className="soon" style={{ marginTop: 16 }}>
-            Requer o <code>CustomSkinLoader</code> no modpack apontando para o Aether. Se ainda não tiver, peça ao dono do servidor — a config sincroniza para todos.
+
+          <div className="soon">
+            Para a skin aparecer no jogo, o modpack precisa do <code>CustomSkinLoader</code> apontando para o Aether — a config sincroniza para todos.
           </div>
         </div>
       </div>

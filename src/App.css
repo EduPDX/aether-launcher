@@ -430,6 +430,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .skin-stage { border: 1px solid var(--border); border-radius: var(--r-lg); background: radial-gradient(80% 70% at 50% 18%, var(--surface-3), var(--surface)); display: grid; place-items: center; padding: 28px; min-height: 300px; }
 /* Recorte do rosto (8,8) de uma skin 64x64, ampliado e pixelado. */
 .skin-face { width: 128px; height: 128px; border-radius: 14px; background-repeat: no-repeat; background-size: 1024px 1024px; background-position: -128px -128px; image-rendering: pixelated; box-shadow: 0 14px 26px rgba(0, 0, 0, 0.4); }
+.skin-preview { display: flex; flex-direction: column; gap: 10px; }
+.skin-status { text-align: center; font-size: 12.5px; font-weight: 600; color: var(--text-mute); }
+.skin-status.on { color: var(--accent); }
+.skin-controls { display: flex; flex-direction: column; gap: 14px; }
+.skin-controls .setting { margin-bottom: 0; }
 .mc { width: 92px; position: relative; filter: drop-shadow(0 14px 22px rgba(0,0,0,.4)); }
 .mc .part { position: relative; margin: 0 auto; border-radius: 3px; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); }
 .mc .head { width: 50px; height: 50px; background: linear-gradient(160deg,#c8956b,#a56a44); }
