@@ -28,6 +28,8 @@ struct ServerInfo {
     port: Option<u16>,
     /// Jogadores online (consulta server-side do Core), quando disponível.
     players: Option<Players>,
+    /// Latência até o Core (mesma máquina do jogo) — proxy confiável do ping.
+    latency_ms: Option<u64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -98,10 +100,12 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         server.trim_end_matches('/'),
         manifest.instance.id
     );
+    let t0 = std::time::Instant::now();
     let status: Option<serde_json::Value> = match http.get(&status_url).send().await {
         Ok(res) => res.json().await.ok(),
         Err(_) => None,
     };
+    let latency_ms = status.as_ref().map(|_| t0.elapsed().as_millis() as u64);
     let state = status
         .as_ref()
         .and_then(|v| v.get("state").and_then(|s| s.as_str()).map(String::from))
@@ -128,6 +132,7 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         state,
         port,
         players,
+        latency_ms,
     })
 }
 

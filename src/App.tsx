@@ -17,6 +17,9 @@ interface Server {
   memoryMb?: number;
   /** Nome amigável (o do servidor, quando conhecido). */
   label?: string;
+  /** Endereço do servidor de jogo (host ou host:porta) para entrar direto.
+   *  Vazio = o launcher deriva do endereço do Core + porta do status. */
+  gameAddress?: string;
 }
 
 interface ServerInfo {
@@ -28,13 +31,7 @@ interface ServerInfo {
   state: string;
   port?: number | null;
   players?: { online: number; max: number } | null;
-}
-
-interface ServerPing {
-  online: number;
-  max: number;
-  latency_ms: number;
-  motd: string;
+  latency_ms?: number | null;
 }
 
 interface PlanSummary {
@@ -360,13 +357,19 @@ function usePlayEngine(server: Server) {
       pushLog("— sincronizando antes de jogar —");
       await invoke<PlanSummary>("run_sync", { server: server.server, profileId: server.profileId, dir: server.dir, includeOptional: false });
       pushLog("— preparando o jogo —");
-      // Auto-join: se ligado e soubermos host+porta, entra direto no servidor.
+      // Auto-join: entra direto no servidor. Usa o endereço explícito se houver;
+      // senão deriva do endereço do Core + porta do status.
       let quickPlay: string | null = null;
-      if (localStorage.getItem("aether.launcher.autojoin") !== "off" && info?.port) {
-        try {
-          const host = new URL(server.server).hostname;
-          if (host) quickPlay = `${host}:${info.port}`;
-        } catch { /* URL inválida: lança normal */ }
+      if (localStorage.getItem("aether.launcher.autojoin") !== "off") {
+        const explicit = server.gameAddress?.trim();
+        if (explicit) {
+          quickPlay = explicit;
+        } else if (info?.port) {
+          try {
+            const host = new URL(server.server).hostname;
+            if (host) quickPlay = `${host}:${info.port}`;
+          } catch { /* URL inválida: lança normal */ }
+        }
       }
       const result = await invoke<{ version: string; pid: number }>("play", {
         server: server.server, profileId: server.profileId, dir: server.dir,
@@ -571,35 +574,16 @@ function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: st
 function DashboardSection({ server, engine, stats, onConfig }: { server: Server; engine: Engine; stats: SystemStats | null; onConfig: () => void }) {
   const { info, plan, busy, activity, log, error } = engine;
   const [showLog, setShowLog] = useState(false);
-  const [ping, setPing] = useState<ServerPing | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [log, showLog]);
 
-  // Server List Ping direto no servidor: jogadores online + latência real.
-  // Porta: a do status do Core; se vier vazia, cai no padrão do Minecraft.
-  useEffect(() => {
-    const port = info?.port ?? 25565;
-    let host = "";
-    try { host = new URL(server.server).hostname; } catch { return; }
-    if (!host) return;
-    let alive = true;
-    const tick = () =>
-      invoke<ServerPing>("server_ping", { host, port })
-        .then((p) => { if (alive) setPing(p); })
-        .catch(() => { if (alive) setPing(null); });
-    tick();
-    const t = setInterval(tick, 10000);
-    return () => { alive = false; clearInterval(t); };
-  }, [server.server, info?.port]);
-
   const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
   const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
   const memPct = stats ? (stats.mem_used / stats.mem_total) * 100 : 0;
-  // Contagem: prefere a do Core (server-side, confiável); cai no SLP do launcher.
-  const pcount = info?.players ?? (ping ? { online: ping.online, max: ping.max } : null);
+  const pcount = info?.players ?? null;
 
   return (
     <div className="page">
@@ -636,7 +620,7 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="ping" />Ping</div>
-          <div className="wv tnum">{ping ? ping.latency_ms : "—"}<small> ms</small></div>
+          <div className="wv tnum">{info?.latency_ms != null ? info.latency_ms : "—"}<small> ms</small></div>
           <div className="hint" style={{ marginTop: 10 }}>até o servidor</div>
         </div>
         <div className="card widget">
@@ -686,6 +670,7 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
   const [profileId, setProfileId] = useState(initial?.profileId ?? "");
   const [dir, setDir] = useState(initial?.dir ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
+  const [gameAddress, setGameAddress] = useState(initial?.gameAddress ?? "");
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
 
@@ -698,7 +683,7 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
     setError(""); setTesting(true);
     try {
       const info = await invoke<ServerInfo>("server_info", { server: server.trim(), profileId: profileId.trim() });
-      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name });
+      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name, gameAddress: gameAddress.trim() || undefined });
     } catch (e) {
       setError(String(e));
     } finally { setTesting(false); }
@@ -721,6 +706,11 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
         <div className="field">
           <label>Nome do jogador</label>
           <input placeholder="Seu nick no jogo" value={username} onChange={(e) => setUsername(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Endereço do servidor de jogo (opcional)</label>
+          <input placeholder="ex.: mc.meuserver.com  ou  192.168.1.10:25565" value={gameAddress} onChange={(e) => setGameAddress(e.target.value)} />
+          <p className="hint">Para entrar direto no servidor ao clicar em Jogar. Use o mesmo endereço que você digita no Minecraft. Vazio = o launcher tenta sozinho.</p>
         </div>
         <div className="field">
           <label>Pasta do jogo</label>
