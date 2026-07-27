@@ -27,6 +27,7 @@ interface ServerInfo {
   total_size: number;
   state: string;
   port?: number | null;
+  players?: { online: number; max: number } | null;
 }
 
 interface ServerPing {
@@ -421,6 +422,7 @@ export default function App() {
   const [section, setSection] = useState<Section>("dashboard");
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [autojoin, setAutojoin] = useState<boolean>(() => localStorage.getItem("aether.launcher.autojoin") !== "off");
+  const [iconPack, setIconPack] = useState<string>(() => localStorage.getItem("aether.launcher.iconpack") || "classico");
 
   const stats = useSystemStats();
 
@@ -432,6 +434,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("aether.launcher.autojoin", autojoin ? "on" : "off");
   }, [autojoin]);
+
+  useEffect(() => {
+    document.documentElement.dataset.iconpack = iconPack;
+    localStorage.setItem("aether.launcher.iconpack", iconPack);
+  }, [iconPack]);
 
   function persist(next: Server[], nextActive = active) {
     setServers(next);
@@ -462,7 +469,7 @@ export default function App() {
 
   return <Shell
     servers={servers} active={active} current={current} section={section} preset={preset} stats={stats}
-    autojoin={autojoin} onAutojoin={setAutojoin}
+    autojoin={autojoin} onAutojoin={setAutojoin} iconPack={iconPack} onIconPack={setIconPack}
     onSection={setSection} onPreset={setPreset} onPatch={patch}
     onSwitch={(i) => { persist(servers, i); setSection("dashboard"); }}
     onAdd={() => setEditing("new")} onEdit={(i) => setEditing(i)}
@@ -473,7 +480,7 @@ export default function App() {
 // ================================================================ Shell =====
 function Shell(props: {
   servers: Server[]; active: number; current: Server; section: Section; preset: string; stats: SystemStats | null;
-  autojoin: boolean; onAutojoin: (v: boolean) => void;
+  autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
   onSection: (s: Section) => void; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
   onSwitch: (i: number) => void; onAdd: () => void; onEdit: (i: number) => void; onRemove: (i: number) => void;
 }) {
@@ -534,7 +541,7 @@ function Shell(props: {
           {section === "map" && <SoonSection title="Mapa" lead="Ver o mundo e as construções direto no launcher." items={["mapa ao vivo via BlueMap no servidor (preferencial)", "ou ler o JourneyMap do seu PC (o que você explorou)", "opcional, ligado por servidor"]} />}
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
           {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
-          {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} />}
+          {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} iconPack={props.iconPack} onIconPack={props.onIconPack} />}
         </main>
       </div>
 
@@ -572,9 +579,9 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
   }, [log, showLog]);
 
   // Server List Ping direto no servidor: jogadores online + latência real.
+  // Porta: a do status do Core; se vier vazia, cai no padrão do Minecraft.
   useEffect(() => {
-    const port = info?.port;
-    if (!port) { setPing(null); return; }
+    const port = info?.port ?? 25565;
     let host = "";
     try { host = new URL(server.server).hostname; } catch { return; }
     if (!host) return;
@@ -591,6 +598,8 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
   const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
   const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
   const memPct = stats ? (stats.mem_used / stats.mem_total) * 100 : 0;
+  // Contagem: prefere a do Core (server-side, confiável); cai no SLP do launcher.
+  const pcount = info?.players ?? (ping ? { online: ping.online, max: ping.max } : null);
 
   return (
     <div className="page">
@@ -622,8 +631,8 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
       <div className="grid widgets">
         <div className="card widget">
           <div className="wl"><Icon n="players" />Jogadores</div>
-          <div className="wv tnum">{ping ? ping.online : "—"}<small> / {ping ? ping.max : "—"}</small></div>
-          <div className="hint" style={{ marginTop: 10 }}>{ping ? "online agora" : info?.state === "running" ? "consultando…" : "servidor offline"}</div>
+          <div className="wv tnum">{pcount ? pcount.online : "—"}<small> / {pcount ? pcount.max : "—"}</small></div>
+          <div className="hint" style={{ marginTop: 10 }}>{pcount ? "online agora" : info?.state === "running" ? "consultando…" : "servidor offline"}</div>
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="ping" />Ping</div>
@@ -1033,9 +1042,18 @@ function FilesSection({ server }: { server: Server }) {
 }
 
 // =========================================================== Configurações ==
-function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin }: {
+const ICON_PACKS: { id: string; label: string }[] = [
+  { id: "classico", label: "Clássico" },
+  { id: "neutro", label: "Neutro" },
+  { id: "solido", label: "Sólido" },
+  { id: "contraste", label: "Contraste" },
+  { id: "pastel", label: "Pastel" },
+  { id: "destaque", label: "Destaque" },
+];
+
+function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin, iconPack, onIconPack }: {
   server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
-  autojoin: boolean; onAutojoin: (v: boolean) => void;
+  autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
 }) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
 
@@ -1063,6 +1081,19 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="setting">
+        <label>Ícones de arquivo</label>
+        <div className="iconpack-grid">
+          {ICON_PACKS.map((p) => (
+            <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
+              <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="hint">Muda como pastas e arquivos aparecem no gerenciador de arquivos.</p>
       </div>
 
       <span className="eyebrow set-eyebrow">Jogo</span>

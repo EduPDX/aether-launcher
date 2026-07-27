@@ -253,6 +253,40 @@ button.crumb:hover { background: var(--surface-3); color: var(--text); }
 .file-ico { width: 18px; display: grid; place-items: center; color: var(--text-mute); }
 .file-ico svg { width: 17px; height: 17px; }
 .file-ico.dir { color: var(--accent-2); }
+
+/* ------------------------------------------------ pacotes de ícones ------ */
+.iconpack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 8px; }
+.ipk { border: 1px solid var(--border); background: var(--surface-2); border-radius: var(--r-md); padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 9px; color: var(--text); font-size: 12px; font-weight: 600; }
+.ipk:hover { border-color: var(--text-mute); }
+.ipk.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ipk-prev { display: flex; gap: 10px; align-items: center; min-height: 28px; }
+/* neutro — monocromático */
+:root[data-iconpack="neutro"] .file-ico, :root[data-iconpack="neutro"] .file-ico.dir,
+:root[data-iconpack="neutro"] .gi, :root[data-iconpack="neutro"] .gi.dir,
+.ipk[data-iconpack="neutro"] .file-ico, .ipk[data-iconpack="neutro"] .file-ico.dir { color: var(--text-dim); }
+/* destaque — tudo no acento */
+:root[data-iconpack="destaque"] .file-ico, :root[data-iconpack="destaque"] .file-ico.dir,
+:root[data-iconpack="destaque"] .gi, :root[data-iconpack="destaque"] .gi.dir,
+.ipk[data-iconpack="destaque"] .file-ico, .ipk[data-iconpack="destaque"] .file-ico.dir { color: var(--accent); }
+/* pastel — contorno fino, cor suave */
+:root[data-iconpack="pastel"] .file-ico svg, :root[data-iconpack="pastel"] .gi svg,
+.ipk[data-iconpack="pastel"] .file-ico svg { stroke-width: 1.5; }
+:root[data-iconpack="pastel"] .file-ico.dir, :root[data-iconpack="pastel"] .gi.dir,
+.ipk[data-iconpack="pastel"] .file-ico.dir { color: var(--accent-2); opacity: 0.72; }
+:root[data-iconpack="pastel"] .file-ico, :root[data-iconpack="pastel"] .gi,
+.ipk[data-iconpack="pastel"] .file-ico { opacity: 0.82; }
+/* solido — ícone sobre pastilha colorida */
+:root[data-iconpack="solido"] .file-ico, .ipk[data-iconpack="solido"] .file-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-4); color: var(--text); }
+:root[data-iconpack="solido"] .file-ico.dir, .ipk[data-iconpack="solido"] .file-ico.dir { background: var(--accent-2); color: var(--accent-ink); }
+:root[data-iconpack="solido"] .file-ico svg, .ipk[data-iconpack="solido"] .file-ico svg { width: 14px; height: 14px; }
+:root[data-iconpack="solido"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-4); }
+:root[data-iconpack="solido"] .gi.dir { background: var(--accent-2); color: var(--accent-ink); }
+/* contraste — pastilha preenchida no acento */
+:root[data-iconpack="contraste"] .file-ico, .ipk[data-iconpack="contraste"] .file-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-3); color: var(--text); }
+:root[data-iconpack="contraste"] .file-ico.dir, .ipk[data-iconpack="contraste"] .file-ico.dir { background: var(--accent); color: var(--accent-ink); }
+:root[data-iconpack="contraste"] .file-ico svg, .ipk[data-iconpack="contraste"] .file-ico svg { width: 14px; height: 14px; }
+:root[data-iconpack="contraste"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-3); }
+:root[data-iconpack="contraste"] .gi.dir { background: var(--accent); color: var(--accent-ink); }
 .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-size { font-size: 11px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .file-row .badge { font-size: 10px; padding: 1px 7px; }

@@ -26,6 +26,14 @@ struct ServerInfo {
     state: String,
     /// Porta TCP do jogo (do status público) — usada pelo Server List Ping.
     port: Option<u16>,
+    /// Jogadores online (consulta server-side do Core), quando disponível.
+    players: Option<Players>,
+}
+
+#[derive(Serialize, Clone)]
+struct Players {
+    online: i64,
+    max: i64,
 }
 
 #[derive(Serialize, Clone)]
@@ -102,6 +110,14 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         .as_ref()
         .and_then(|v| v.get("port").and_then(|p| p.as_u64()))
         .map(|p| p as u16);
+    let players = status
+        .as_ref()
+        .and_then(|v| v.get("players"))
+        .filter(|p| !p.is_null())
+        .map(|p| Players {
+            online: p.get("online").and_then(|x| x.as_i64()).unwrap_or(0),
+            max: p.get("max").and_then(|x| x.as_i64()).unwrap_or(0),
+        });
 
     Ok(ServerInfo {
         instance_name: manifest.instance.name,
@@ -111,6 +127,7 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         total_size: manifest.total_size,
         state,
         port,
+        players,
     })
 }
 
