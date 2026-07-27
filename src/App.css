@@ -199,7 +199,7 @@ button.ghost:hover { background: var(--surface-3); color: var(--text); }
 .banner .g-btn:hover { background: rgba(255,255,255,0.26); }
 .banner .g-btn:disabled { opacity: .55; cursor: default; }
 
-.widgets { grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+.widgets { grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
 .widget { padding: 14px 16px; }
 .widget .wl { display: flex; align-items: center; gap: 7px; color: var(--text-mute); font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
 .widget .wl svg { width: 14px; height: 14px; }

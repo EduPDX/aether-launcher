@@ -26,6 +26,14 @@ interface ServerInfo {
   files: number;
   total_size: number;
   state: string;
+  port?: number | null;
+}
+
+interface ServerPing {
+  online: number;
+  max: number;
+  latency_ms: number;
+  motd: string;
 }
 
 interface PlanSummary {
@@ -187,7 +195,7 @@ function BrandLogo({ size = 24 }: { size?: number }) {
   );
 }
 
-type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh";
+type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping";
 
 function Icon({ n }: { n: IconName }) {
   const p: Record<IconName, ReactElement> = {
@@ -203,6 +211,8 @@ function Icon({ n }: { n: IconName }) {
     server: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
     play: <path d="M7 5v14l11-7z" />,
     refresh: <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />,
+    players: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    ping: <path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01" />,
   };
   const filled = n === "play";
   return (
@@ -505,11 +515,29 @@ function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: st
 function DashboardSection({ server, engine, stats, onConfig }: { server: Server; engine: Engine; stats: SystemStats | null; onConfig: () => void }) {
   const { info, plan, busy, activity, log, error } = engine;
   const [showLog, setShowLog] = useState(false);
+  const [ping, setPing] = useState<ServerPing | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [log, showLog]);
+
+  // Server List Ping direto no servidor: jogadores online + latência real.
+  useEffect(() => {
+    const port = info?.port;
+    if (!port) { setPing(null); return; }
+    let host = "";
+    try { host = new URL(server.server).hostname; } catch { return; }
+    if (!host) return;
+    let alive = true;
+    const tick = () =>
+      invoke<ServerPing>("server_ping", { host, port })
+        .then((p) => { if (alive) setPing(p); })
+        .catch(() => { if (alive) setPing(null); });
+    tick();
+    const t = setInterval(tick, 10000);
+    return () => { alive = false; clearInterval(t); };
+  }, [server.server, info?.port]);
 
   const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
   const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
@@ -544,6 +572,16 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 
       <div className="grid widgets">
         <div className="card widget">
+          <div className="wl"><Icon n="players" />Jogadores</div>
+          <div className="wv tnum">{ping ? ping.online : "—"}<small> / {ping ? ping.max : "—"}</small></div>
+          <div className="hint" style={{ marginTop: 10 }}>{ping ? "online agora" : info?.state === "running" ? "consultando…" : "servidor offline"}</div>
+        </div>
+        <div className="card widget">
+          <div className="wl"><Icon n="ping" />Ping</div>
+          <div className="wv tnum">{ping ? ping.latency_ms : "—"}<small> ms</small></div>
+          <div className="hint" style={{ marginTop: 10 }}>até o servidor</div>
+        </div>
+        <div className="card widget">
           <div className="wl"><Icon n="cpu" />CPU · seu PC</div>
           <div className="wv tnum">{stats ? Math.round(stats.cpu) : "—"}<small>%</small></div>
           <div className="mini-track"><i style={{ width: `${stats ? Math.min(100, stats.cpu) : 0}%` }} /></div>
@@ -552,11 +590,6 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
           <div className="wl"><Icon n="ram" />RAM · seu PC</div>
           <div className="wv tnum">{stats ? (stats.mem_used / 1024 ** 3).toFixed(1) : "—"}<small> / {stats ? (stats.mem_total / 1024 ** 3).toFixed(0) : "—"} GB</small></div>
           <div className="mini-track"><i style={{ width: `${memPct}%` }} /></div>
-        </div>
-        <div className="card widget">
-          <div className="wl"><Icon n="server" />Servidor</div>
-          <div className="wv" style={{ fontSize: 20 }}>{STATE_LABEL[info?.state ?? "unknown"] ?? "—"}</div>
-          <div className="hint" style={{ marginTop: 8 }}>{info ? `perfil "${info.profile_name}"` : server.server}</div>
         </div>
       </div>
 

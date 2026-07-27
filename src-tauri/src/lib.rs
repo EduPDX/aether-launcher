@@ -2,6 +2,7 @@ pub mod content;
 pub mod files;
 pub mod java;
 pub mod minecraft;
+pub mod ping;
 mod play;
 pub mod sync;
 
@@ -23,6 +24,8 @@ struct ServerInfo {
     files: usize,
     total_size: u64,
     state: String,
+    /// Porta TCP do jogo (do status público) — usada pelo Server List Ping.
+    port: Option<u16>,
 }
 
 #[derive(Serialize, Clone)]
@@ -87,15 +90,18 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         server.trim_end_matches('/'),
         manifest.instance.id
     );
-    let state = match http.get(&status_url).send().await {
-        Ok(res) => res
-            .json::<serde_json::Value>()
-            .await
-            .ok()
-            .and_then(|v| v.get("state").and_then(|s| s.as_str()).map(String::from))
-            .unwrap_or_else(|| "unknown".into()),
-        Err(_) => "unknown".into(),
+    let status: Option<serde_json::Value> = match http.get(&status_url).send().await {
+        Ok(res) => res.json().await.ok(),
+        Err(_) => None,
     };
+    let state = status
+        .as_ref()
+        .and_then(|v| v.get("state").and_then(|s| s.as_str()).map(String::from))
+        .unwrap_or_else(|| "unknown".into());
+    let port = status
+        .as_ref()
+        .and_then(|v| v.get("port").and_then(|p| p.as_u64()))
+        .map(|p| p as u16);
 
     Ok(ServerInfo {
         instance_name: manifest.instance.name,
@@ -104,6 +110,7 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         files: manifest.files.len(),
         total_size: manifest.total_size,
         state,
+        port,
     })
 }
 
@@ -357,6 +364,7 @@ pub fn run() {
             content::content_installed,
             content::modrinth_install,
             content::content_remove,
+            ping::server_ping,
             system_stats
         ])
         .run(tauri::generate_context!())
