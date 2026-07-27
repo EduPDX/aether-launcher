@@ -117,52 +117,81 @@ function formatBytes(n: number): string {
 }
 
 // ============================================================== tema ========
-interface Preset {
-  label: string;
-  bg: string;
-  card: string;
-  dot: string;
-  vars: Record<string, string>;
+// Os mesmos temas do dashboard do servidor (lib/themes.ts), trazidos ao launcher.
+interface ThemeTokens {
+  bg: string; surface: string; surface2: string; surface3: string; border: string;
+  text: string; muted: string; accent: string; accentDim: string; danger: string; warn: string; info: string;
 }
+interface Theme { label: string; dark: boolean; tokens: ThemeTokens; }
 
-const PRESETS: Record<string, Preset> = {
-  midnight: {
-    label: "Meia-noite", bg: "#0c0f13", card: "#1e2430", dot: "#34d399",
-    vars: { "--bg": "#0c0f13", "--surface": "#12151b", "--surface-2": "#171b22", "--surface-3": "#1e2430", "--surface-4": "#262e3c", "--border": "#262c36", "--border-soft": "#1b212a", "--text": "#e6eaf1", "--text-dim": "#9aa4b2", "--text-mute": "#67707e", "--accent": "#34d399", "--accent-2": "#38bdf8", "--accent-ink": "#04140d", "--accent-soft": "rgba(52,211,153,.14)" },
-  },
-  aurora: {
-    label: "Aurora", bg: "#071615", card: "#163330", dot: "#2dd4bf",
-    vars: { "--bg": "#071615", "--surface": "#0c1f1d", "--surface-2": "#102725", "--surface-3": "#163330", "--surface-4": "#1e423e", "--border": "#1c3b38", "--border-soft": "#12302d", "--text": "#dff5f0", "--text-dim": "#8fb8b2", "--text-mute": "#5f817c", "--accent": "#2dd4bf", "--accent-2": "#34d399", "--accent-ink": "#04140d", "--accent-soft": "rgba(45,212,191,.15)" },
-  },
-  ametista: {
-    label: "Ametista", bg: "#100a19", card: "#261b40", dot: "#a855f7",
-    vars: { "--bg": "#100a19", "--surface": "#171025", "--surface-2": "#1d1530", "--surface-3": "#261b40", "--surface-4": "#33245a", "--border": "#2a1f45", "--border-soft": "#1e1636", "--text": "#ece6f7", "--text-dim": "#a99bc4", "--text-mute": "#766a90", "--accent": "#a855f7", "--accent-2": "#d946ef", "--accent-ink": "#17081f", "--accent-soft": "rgba(168,85,247,.16)" },
-  },
-  brasa: {
-    label: "Brasa", bg: "#14100c", card: "#2f251b", dot: "#f59e0b",
-    vars: { "--bg": "#14100c", "--surface": "#1c1712", "--surface-2": "#241d16", "--surface-3": "#2f251b", "--surface-4": "#3d2f20", "--border": "#34281c", "--border-soft": "#261e15", "--text": "#f3ece2", "--text-dim": "#c2ae98", "--text-mute": "#8a7660", "--accent": "#f59e0b", "--accent-2": "#fb923c", "--accent-ink": "#1a1206", "--accent-soft": "rgba(245,158,11,.15)" },
-  },
-  rose: {
-    label: "Rosé", bg: "#16090f", card: "#351a26", dot: "#ec4899",
-    vars: { "--bg": "#16090f", "--surface": "#201017", "--surface-2": "#29141d", "--surface-3": "#351a26", "--surface-4": "#452232", "--border": "#3a1f2c", "--border-soft": "#2a1520", "--text": "#f7e6ee", "--text-dim": "#c99cb0", "--text-mute": "#906a7c", "--accent": "#ec4899", "--accent-2": "#f472b6", "--accent-ink": "#1e0710", "--accent-soft": "rgba(236,72,153,.16)" },
-  },
-  papel: {
-    label: "Papel", bg: "#e7ebf1", card: "#ffffff", dot: "#059669",
-    vars: { "--bg": "#e7ebf1", "--surface": "#ffffff", "--surface-2": "#f4f6fa", "--surface-3": "#eaeef4", "--surface-4": "#dfe5ee", "--border": "#d6dce5", "--border-soft": "#e6eaf0", "--text": "#101725", "--text-dim": "#4c5665", "--text-mute": "#838d9b", "--accent": "#059669", "--accent-2": "#0284c7", "--accent-ink": "#ffffff", "--accent-soft": "rgba(5,150,105,.12)" },
-  },
+const THEMES: Record<string, Theme> = {
+  aether: { label: "Aether", dark: true, tokens: { bg: "#0b1220", surface: "#131f36", surface2: "#1b2b4a", surface3: "#24395f", border: "#2b4470", text: "#eaf2ff", muted: "#94accd", accent: "#22e39b", accentDim: "#12c684", danger: "#ff5c7a", warn: "#ffc63d", info: "#4cc9f0" } },
+  roxo: { label: "Roxo", dark: true, tokens: { bg: "#1a143d", surface: "#251c58", surface2: "#2d245e", surface3: "#3b2f7a", border: "#463a8f", text: "#e0d7ff", muted: "#a89ad4", accent: "#a78bfa", accentDim: "#8b5cf6", danger: "#fb7185", warn: "#fbbf24", info: "#7dd3fc" } },
+  ametista: { label: "Ametista", dark: true, tokens: { bg: "#1e0b36", surface: "#2b1150", surface2: "#37175f", surface3: "#4a1f7d", border: "#5b2896", text: "#f5f3ff", muted: "#c4a6e8", accent: "#d8b4fe", accentDim: "#c084fc", danger: "#ff6b8b", warn: "#fcd34d", info: "#a5b4fc" } },
+  synthwave: { label: "Synthwave", dark: true, tokens: { bg: "#190b2e", surface: "#251140", surface2: "#331858", surface3: "#452076", border: "#57298f", text: "#ffe9fb", muted: "#c39ad9", accent: "#ff5fd2", accentDim: "#e839b6", danger: "#ff4365", warn: "#ffd166", info: "#5bd1ff" } },
+  cyber: { label: "Cyber", dark: true, tokens: { bg: "#04141c", surface: "#07222e", surface2: "#0a3040", surface3: "#0f4256", border: "#12556e", text: "#d7fbff", muted: "#71b4c7", accent: "#00f0ff", accentDim: "#00c2cc", danger: "#ff4d6d", warn: "#ffd60a", info: "#7b61ff" } },
+  oceano: { label: "Oceano", dark: true, tokens: { bg: "#06212b", surface: "#0a3040", surface2: "#0e3f52", surface3: "#155268", border: "#1a6580", text: "#dff8f5", muted: "#7fb9c4", accent: "#2dd4bf", accentDim: "#14b8a6", danger: "#fb7185", warn: "#fbbf24", info: "#38bdf8" } },
+  dracula: { label: "Dracula", dark: true, tokens: { bg: "#282a36", surface: "#343746", surface2: "#3d4055", surface3: "#4a4d68", border: "#5b5f80", text: "#f8f8f2", muted: "#b9c0dc", accent: "#bd93f9", accentDim: "#9d6ff5", danger: "#ff5555", warn: "#f1fa8c", info: "#8be9fd" } },
+  catppuccin: { label: "Catppuccin", dark: true, tokens: { bg: "#1e1e2e", surface: "#28283d", surface2: "#313244", surface3: "#45475a", border: "#585b70", text: "#cdd6f4", muted: "#a6adc8", accent: "#a6e3a1", accentDim: "#88d98a", danger: "#f38ba8", warn: "#f9e2af", info: "#89b4fa" } },
+  hacker: { label: "Hacker", dark: true, tokens: { bg: "#020a02", surface: "#061606", surface2: "#0a220a", surface3: "#103010", border: "#164016", text: "#b8ffb8", muted: "#5fa85f", accent: "#39ff14", accentDim: "#22d40a", danger: "#ff3131", warn: "#faff00", info: "#00e5ff" } },
+  fogo: { label: "Fogo", dark: true, tokens: { bg: "#1a0d08", surface: "#2a150c", surface2: "#3a1d10", surface3: "#4e2716", border: "#63321c", text: "#ffe9dd", muted: "#c99b82", accent: "#ff7a29", accentDim: "#e85d04", danger: "#ff3b30", warn: "#ffc300", info: "#4cc9f0" } },
+  nord: { label: "Nord", dark: true, tokens: { bg: "#2e3440", surface: "#3b4252", surface2: "#434c5e", surface3: "#4c566a", border: "#59647a", text: "#eceff4", muted: "#a9b4c6", accent: "#88c0d0", accentDim: "#6da8ba", danger: "#bf616a", warn: "#ebcb8b", info: "#81a1c1" } },
+  tokyo: { label: "Tokyo Night", dark: true, tokens: { bg: "#1a1b26", surface: "#24283b", surface2: "#2f334d", surface3: "#3b4261", border: "#4a5178", text: "#c0caf5", muted: "#8f96bd", accent: "#7aa2f7", accentDim: "#5d86e0", danger: "#f7768e", warn: "#e0af68", info: "#7dcfff" } },
+  gruvbox: { label: "Gruvbox", dark: true, tokens: { bg: "#1d2021", surface: "#282828", surface2: "#32302f", surface3: "#3c3836", border: "#504945", text: "#fbf1c7", muted: "#bdae93", accent: "#b8bb26", accentDim: "#98971a", danger: "#fb4934", warn: "#fabd2f", info: "#83a598" } },
+  matcha: { label: "Matcha", dark: true, tokens: { bg: "#0d1a10", surface: "#132618", surface2: "#1a3421", surface3: "#23452c", border: "#2d5738", text: "#e3f5e7", muted: "#8fb99a", accent: "#7bd88f", accentDim: "#57bd6e", danger: "#ff6b6b", warn: "#ffd166", info: "#5bc0eb" } },
+  vinho: { label: "Vinho", dark: true, tokens: { bg: "#1c0a10", surface: "#2b1019", surface2: "#3a1622", surface3: "#4d1d2d", border: "#63263a", text: "#ffe4ec", muted: "#c88ea3", accent: "#ff6b9d", accentDim: "#e04578", danger: "#ff4d4d", warn: "#ffb703", info: "#7fb3ff" } },
+  grafite: { label: "Grafite", dark: true, tokens: { bg: "#0f0f11", surface: "#18181b", surface2: "#212124", surface3: "#2c2c31", border: "#3a3a41", text: "#f4f4f5", muted: "#a1a1aa", accent: "#e4e4e7", accentDim: "#c4c4c8", danger: "#f87171", warn: "#fbbf24", info: "#60a5fa" } },
+  sakura: { label: "Sakura (claro)", dark: false, tokens: { bg: "#fff5f7", surface: "#ffffff", surface2: "#ffeaf0", surface3: "#ffd6e2", border: "#f7c2d4", text: "#4a1128", muted: "#96566f", accent: "#db2777", accentDim: "#be185d", danger: "#dc2626", warn: "#b45309", info: "#2563eb" } },
+  papel: { label: "Papel (claro)", dark: false, tokens: { bg: "#faf7f0", surface: "#ffffff", surface2: "#f3ede1", surface3: "#e8dfcc", border: "#d9ccb2", text: "#2d2a24", muted: "#6f6754", accent: "#a16207", accentDim: "#854d0e", danger: "#b91c1c", warn: "#c2410c", info: "#1d4ed8" } },
+  lavanda: { label: "Lavanda (claro)", dark: false, tokens: { bg: "#f6f4ff", surface: "#ffffff", surface2: "#efeaff", surface3: "#e0d7fb", border: "#cfc2f5", text: "#2e1065", muted: "#6d5ba3", accent: "#7c3aed", accentDim: "#6d28d9", danger: "#dc2626", warn: "#d97706", info: "#2563eb" } },
+  geada: { label: "Geada (claro)", dark: false, tokens: { bg: "#f2f8fb", surface: "#ffffff", surface2: "#e8f2f8", surface3: "#d5e7f0", border: "#bcd8e6", text: "#0d2b3a", muted: "#4a7186", accent: "#0891b2", accentDim: "#0e7490", danger: "#dc2626", warn: "#b45309", info: "#2563eb" } },
 };
 
-const THEME_KEY = "aether.launcher.theme.preset";
+const THEME_KEY = "aether.launcher.theme";
 
 function loadPreset(): string {
   const id = localStorage.getItem(THEME_KEY);
-  return id && PRESETS[id] ? id : "midnight";
+  return id && THEMES[id] ? id : "aether";
 }
 
-function applyPreset(id: string) {
-  const p = PRESETS[id] ?? PRESETS.midnight;
+function hexRgba(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/** Cor do texto sobre o acento (contraste automático). */
+function inkFor(hex: string): string {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  const lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return lum > 150 ? "#0b1020" : "#ffffff";
+}
+
+function applyPreset(name: string) {
+  const t = THEMES[name] ?? THEMES.aether;
+  const k = t.tokens;
   const r = document.documentElement;
-  for (const [k, v] of Object.entries(p.vars)) r.style.setProperty(k, v);
+  const set = (key: string, val: string) => r.style.setProperty(key, val);
+  set("--bg", k.bg);
+  set("--surface", k.surface);
+  set("--surface-2", k.surface2);
+  set("--surface-3", k.surface3);
+  set("--surface-4", k.surface3);
+  set("--border", k.border);
+  set("--border-soft", k.border);
+  set("--text", k.text);
+  set("--text-dim", k.muted);
+  set("--text-mute", k.muted);
+  set("--accent", k.accent);
+  set("--accent-2", k.info);
+  set("--accent-ink", inkFor(k.accent));
+  set("--accent-soft", hexRgba(k.accent, 0.16));
+  set("--danger", k.danger);
+  set("--warn", k.warn);
+  set("--info", k.info);
+  r.style.colorScheme = t.dark ? "dark" : "light";
 }
 
 const STATE_LABEL: Record<string, string> = {
@@ -195,7 +224,7 @@ function BrandLogo({ size = 24 }: { size?: number }) {
   );
 }
 
-type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping";
+type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping" | "folder" | "file" | "trash" | "lock" | "download";
 
 function Icon({ n }: { n: IconName }) {
   const p: Record<IconName, ReactElement> = {
@@ -213,6 +242,11 @@ function Icon({ n }: { n: IconName }) {
     refresh: <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />,
     players: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
     ping: <path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01" />,
+    folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />,
+    file: <path d="M14 2v6h6M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" />,
+    trash: <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13" />,
+    lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+    download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
   };
   const filled = n === "play";
   return (
@@ -325,9 +359,17 @@ function usePlayEngine(server: Server) {
       pushLog("— sincronizando antes de jogar —");
       await invoke<PlanSummary>("run_sync", { server: server.server, profileId: server.profileId, dir: server.dir, includeOptional: false });
       pushLog("— preparando o jogo —");
+      // Auto-join: se ligado e soubermos host+porta, entra direto no servidor.
+      let quickPlay: string | null = null;
+      if (localStorage.getItem("aether.launcher.autojoin") !== "off" && info?.port) {
+        try {
+          const host = new URL(server.server).hostname;
+          if (host) quickPlay = `${host}:${info.port}`;
+        } catch { /* URL inválida: lança normal */ }
+      }
       const result = await invoke<{ version: string; pid: number }>("play", {
         server: server.server, profileId: server.profileId, dir: server.dir,
-        username: server.username, memoryMb: server.memoryMb ?? null,
+        username: server.username, memoryMb: server.memoryMb ?? null, quickPlay,
       });
       pushLog(`Minecraft ${result.version} aberto (pid ${result.pid}). Bom jogo!`);
       setActivity({ label: "Jogo iniciado", detail: "bom jogo!", done: 1, total: 1 });
@@ -378,6 +420,7 @@ export default function App() {
   const [preset, setPreset] = useState<string>(loadPreset);
   const [section, setSection] = useState<Section>("dashboard");
   const [editing, setEditing] = useState<number | "new" | null>(null);
+  const [autojoin, setAutojoin] = useState<boolean>(() => localStorage.getItem("aether.launcher.autojoin") !== "off");
 
   const stats = useSystemStats();
 
@@ -385,6 +428,10 @@ export default function App() {
     applyPreset(preset);
     localStorage.setItem(THEME_KEY, preset);
   }, [preset]);
+
+  useEffect(() => {
+    localStorage.setItem("aether.launcher.autojoin", autojoin ? "on" : "off");
+  }, [autojoin]);
 
   function persist(next: Server[], nextActive = active) {
     setServers(next);
@@ -415,6 +462,7 @@ export default function App() {
 
   return <Shell
     servers={servers} active={active} current={current} section={section} preset={preset} stats={stats}
+    autojoin={autojoin} onAutojoin={setAutojoin}
     onSection={setSection} onPreset={setPreset} onPatch={patch}
     onSwitch={(i) => { persist(servers, i); setSection("dashboard"); }}
     onAdd={() => setEditing("new")} onEdit={(i) => setEditing(i)}
@@ -425,6 +473,7 @@ export default function App() {
 // ================================================================ Shell =====
 function Shell(props: {
   servers: Server[]; active: number; current: Server; section: Section; preset: string; stats: SystemStats | null;
+  autojoin: boolean; onAutojoin: (v: boolean) => void;
   onSection: (s: Section) => void; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
   onSwitch: (i: number) => void; onAdd: () => void; onEdit: (i: number) => void; onRemove: (i: number) => void;
 }) {
@@ -485,7 +534,7 @@ function Shell(props: {
           {section === "map" && <SoonSection title="Mapa" lead="Ver o mundo e as construções direto no launcher." items={["mapa ao vivo via BlueMap no servidor (preferencial)", "ou ler o JourneyMap do seu PC (o que você explorou)", "opcional, ligado por servidor"]} />}
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
           {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
-          {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} />}
+          {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} />}
         </main>
       </div>
 
@@ -693,20 +742,30 @@ function ServersSection({ servers, active, onSwitch, onAdd, onEdit, onRemove }: 
         <h2>Servidores</h2>
         <div className="actions"><button className="btn primary" onClick={onAdd}>+ Adicionar</button></div>
       </div>
-      <div className="server-list">
+      <div className="srv-grid">
         {servers.map((s, i) => (
-          <div key={i} className={`server-card ${i === active ? "active" : ""}`}>
-            <button className="server-main" onClick={() => onSwitch(i)}>
-              <div className="server-name">
-                {s.label || s.server}
-                {i === active && <span className="badge online" style={{ marginLeft: 8 }}>ativo</span>}
+          <div key={i} className={`srv-card ${i === active ? "active" : ""}`}>
+            <button className="srv-body" onClick={() => onSwitch(i)}>
+              <div className="srv-banner">
+                {i === active && <span className="srv-badge">ativo</span>}
+                <span className="srv-ico">{(s.label || s.server).charAt(0).toUpperCase()}</span>
               </div>
-              <div className="server-sub">{s.server} · {s.username}</div>
+              <div className="srv-name" title={s.label || s.server}>{s.label || s.server}</div>
+              <div className="srv-meta">
+                <span className="srv-line"><Icon n="server" />{s.server.replace(/^https?:\/\//, "")}</span>
+                <span className="srv-line"><Icon n="skin" />{s.username}</span>
+              </div>
             </button>
-            <button className="btn ghost" title="Editar" onClick={() => onEdit(i)}>✎</button>
-            {servers.length > 1 && <button className="btn ghost" title="Remover" onClick={() => onRemove(i)}>🗑</button>}
+            <div className="srv-actions">
+              <button className="btn ghost mini" onClick={() => onEdit(i)}>Editar</button>
+              {servers.length > 1 && <button className="btn ghost mini danger" onClick={() => onRemove(i)}>Remover</button>}
+            </div>
           </div>
         ))}
+        <button className="srv-add" onClick={onAdd}>
+          <span className="srv-add-plus">+</span>
+          Adicionar servidor
+        </button>
       </div>
     </div>
   );
@@ -919,12 +978,12 @@ function FilesSection({ server }: { server: Server }) {
                 return (
                   <div key={e.rel} className="file-row">
                     <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
-                      <span className="file-ico">{e.is_dir ? "📁" : editable ? "📄" : "▪"}</span>
+                      <span className={`file-ico ${e.is_dir ? "dir" : ""}`}><Icon n={e.is_dir ? "folder" : "file"} /></span>
                       <span className="file-name">{e.name}</span>
                       {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
                       {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
                     </button>
-                    {!locked && <button className="file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}>🗑</button>}
+                    {!locked && <button className="file-del" title="Mover para a lixeira" disabled={busy} onClick={() => doDelete(e)}><Icon n="trash" /></button>}
                   </div>
                 );
               })}
@@ -936,9 +995,9 @@ function FilesSection({ server }: { server: Server }) {
                 const editable = !e.is_dir && isEditable(e.name, e.size);
                 return (
                   <button key={e.rel} className="gtile" disabled={!e.is_dir && !editable} onClick={() => openEntry(e)}>
-                    {locked && <span className="glock" title="Sincronizado pelo servidor">🔒</span>}
-                    {!locked && <span className="gdel" title="Mover para a lixeira" onClick={(ev) => { ev.stopPropagation(); doDelete(e); }}>🗑</span>}
-                    <span className="gi">{e.is_dir ? "📁" : "📄"}</span>
+                    {locked && <span className="glock" title="Sincronizado pelo servidor"><Icon n="lock" /></span>}
+                    {!locked && <span className="gdel" title="Mover para a lixeira" onClick={(ev) => { ev.stopPropagation(); doDelete(e); }}><Icon n="trash" /></span>}
+                    <span className={`gi ${e.is_dir ? "dir" : ""}`}><Icon n={e.is_dir ? "folder" : "file"} /></span>
                     <span className="gn" title={e.name}>{e.name}</span>
                   </button>
                 );
@@ -957,7 +1016,7 @@ function FilesSection({ server }: { server: Server }) {
           {trash.length === 0 && <p className="meta">Lixeira vazia.</p>}
           {trash.map((t) => (
             <div key={t.id} className="trow">
-              <span className="ti">{t.is_dir ? "📁" : "📄"}</span>
+              <span className={`ti ${t.is_dir ? "dir" : ""}`}><Icon n={t.is_dir ? "folder" : "file"} /></span>
               <span className="tn">{t.name}</span>
               <span className="tw">{agoLabel(t.ts)} · de {t.rel.includes("/") ? t.rel.slice(0, t.rel.lastIndexOf("/")) : "raiz"}</span>
               <div className="tacts">
@@ -974,7 +1033,10 @@ function FilesSection({ server }: { server: Server }) {
 }
 
 // =========================================================== Configurações ==
-function SettingsSection({ server, preset, onPreset, onPatch }: { server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void }) {
+function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin }: {
+  server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
+  autojoin: boolean; onAutojoin: (v: boolean) => void;
+}) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
 
   async function pickDir() {
@@ -987,33 +1049,38 @@ function SettingsSection({ server, preset, onPreset, onPatch }: { server: Server
       <h2>Configurações</h2>
       <div className="meta">Ajustes do launcher e do jogo</div>
 
+      <span className="eyebrow set-eyebrow">Aparência</span>
       <div className="setting">
-        <label>Tema — a paleta reveste o app inteiro</label>
-        <div className="theme-presets">
-          {Object.entries(PRESETS).map(([id, p]) => (
-            <button key={id} className={`tpreset ${preset === id ? "on" : ""}`} onClick={() => onPreset(id)}>
-              <span className="tp-prev">
-                <i className="pv-bg" style={{ background: p.bg }} />
-                <i className="pv-card" style={{ background: p.card }} />
-                <i className="pv-dot" style={{ background: p.dot }} />
+        <label>Tema — os mesmos do painel do servidor</label>
+        <div className="theme-grid">
+          {Object.entries(THEMES).map(([id, t]) => (
+            <button key={id} className={`tcard ${preset === id ? "on" : ""}`} title={t.label} onClick={() => onPreset(id)}>
+              <span className="tprev" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
+                <i className="tp-s" style={{ background: t.tokens.surface2 }} />
+                <i className="tp-d" style={{ background: t.tokens.accent }} />
               </span>
-              {p.label}
+              <span className="tname">{t.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="setting">
-        <label>Memória do jogo — {memGb.toFixed(1)} GB</label>
-        <input type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
-        <p className="hint">Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p>
-      </div>
-
-      <div className="setting">
-        <label>Pasta do jogo</label>
-        <div className="row">
-          <input type="text" value={server.dir} readOnly />
-          <button className="btn" onClick={pickDir}>Escolher…</button>
+      <span className="eyebrow set-eyebrow">Jogo</span>
+      <div className="setting" style={{ paddingTop: 4, paddingBottom: 4 }}>
+        <div className="set-row">
+          <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
+          <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
+        </div>
+        <div className="set-row">
+          <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
+          <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
+            <input type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
+            <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
+          </div>
+        </div>
+        <div className="set-row">
+          <div className="txt"><h5>Pasta do jogo</h5><p>Onde os arquivos do jogo ficam neste computador.</p></div>
+          <div className="ctl row"><input type="text" style={{ width: 240 }} value={server.dir} readOnly /><button className="btn" onClick={pickDir}>Escolher…</button></div>
         </div>
       </div>
     </div>
@@ -1179,7 +1246,7 @@ function ContentSection({ server }: { server: Server }) {
             const busyThis = installing === item.project_id;
             return (
               <div key={item.project_id} className="mod-card">
-                {item.icon_url ? <img className="mod-ic" src={item.icon_url} alt="" /> : <div className="mod-ic">{isShader ? "🌄" : "🎨"}</div>}
+                {item.icon_url ? <img className="mod-ic" src={item.icon_url} alt="" /> : <div className="mod-ic"><Icon n="content" /></div>}
                 <div className="mod-body">
                   <h4 title={item.title}>{item.title}</h4>
                   <div className="mod-by">por {item.author}</div>

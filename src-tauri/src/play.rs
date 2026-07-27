@@ -171,6 +171,7 @@ pub async fn play(
     dir: String,
     username: String,
     memory_mb: Option<u32>,
+    quick_play: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let username = username.trim().to_string();
     if username.len() < 3
@@ -281,6 +282,12 @@ pub async fn play(
     }
     args.push(version["mainClass"].as_str().ok_or("version json sem mainClass")?.to_string());
     args.extend(minecraft::resolve_arguments(version.pointer("/arguments/game"), &vars));
+
+    // Auto-join: entra direto no servidor pulando o menu (Minecraft 1.20+).
+    if let Some(addr) = quick_play.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        args.push("--quickPlayMultiplayer".into());
+        args.push(addr.to_string());
+    }
 
     // Captura toda a saída do jogo num log (essencial para diagnóstico).
     let log_dir = game_dir.join("logs");
