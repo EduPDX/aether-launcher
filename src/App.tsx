@@ -1111,7 +1111,41 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
 // ================================================================ Skin ======
 function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial<Server>) => void }) {
   const [nick, setNick] = useState(server.username);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [bust, setBust] = useState(0);
+  const [hasSkin, setHasSkin] = useState<boolean | null>(null);
   useEffect(() => setNick(server.username), [server.username]);
+
+  const base = server.server.replace(/\/$/, "");
+  const skinUrl = `${base}/api/v1/public/skins/${encodeURIComponent(server.username)}.png?t=${bust}`;
+
+  // Detecta se já existe skin enviada (pra mostrar o rosto ou o boneco padrão).
+  useEffect(() => {
+    setHasSkin(null);
+    const img = new Image();
+    img.onload = () => setHasSkin(true);
+    img.onerror = () => setHasSkin(false);
+    img.src = skinUrl;
+    return () => { img.onload = null; img.onerror = null; };
+  }, [skinUrl]);
+
+  async function pickAndUpload() {
+    setError(""); setOk("");
+    const file = await open({ multiple: false, filters: [{ name: "Skin (PNG)", extensions: ["png"] }] });
+    if (typeof file !== "string") return;
+    setUploading(true);
+    try {
+      await invoke("upload_skin", { server: server.server, profileId: server.profileId, username: server.username, filePath: file });
+      setOk("Skin enviada! Ela aparece no jogo com o mod de skins ativo.");
+      setBust(Date.now());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="page">
@@ -1120,12 +1154,16 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
 
       <div className="skin-split">
         <div className="skin-stage">
-          <div className="mc">
-            <div className="part head"><div className="face"><i /><i /></div></div>
-            <div className="arms"><span className="arm" /><span className="arm" /></div>
-            <div className="part torso" />
-            <div className="legs"><span className="leg" /><span className="leg" /></div>
-          </div>
+          {hasSkin ? (
+            <div className="skin-face" style={{ backgroundImage: `url("${skinUrl}")` }} title="sua skin" />
+          ) : (
+            <div className="mc">
+              <div className="part head"><div className="face"><i /><i /></div></div>
+              <div className="arms"><span className="arm" /><span className="arm" /></div>
+              <div className="part torso" />
+              <div className="legs"><span className="leg" /><span className="leg" /></div>
+            </div>
+          )}
         </div>
         <div>
           <div className="set-row">
@@ -1136,11 +1174,13 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
             </div>
           </div>
           <div className="set-row">
-            <div className="txt"><h5>Skin personalizada</h5><p>Chega numa próxima atualização.</p></div>
-            <div className="ctl"><button className="btn" disabled>Enviar skin</button></div>
+            <div className="txt"><h5>Skin personalizada</h5><p>Envie um PNG de skin (64×64). Fica hospedada no servidor e todos com o mod de skins veem.</p></div>
+            <div className="ctl"><button className="btn primary" disabled={uploading} onClick={pickAndUpload}>{uploading ? "Enviando…" : hasSkin ? "Trocar skin" : "Enviar skin"}</button></div>
           </div>
+          {error && <p className="error">{error}</p>}
+          {ok && <p className="ok">{ok}</p>}
           <div className="soon" style={{ marginTop: 16 }}>
-            Em servidores no modo offline, a skin só aparece para os outros com um mod de skins (ex.: <code>CustomSkinLoader</code>) no pacote. O launcher vai cuidar de instalar e apontar para a sua skin quando o servidor tiver esse suporte.
+            Requer o <code>CustomSkinLoader</code> no modpack apontando para o Aether. Se ainda não tiver, peça ao dono do servidor — a config sincroniza para todos.
           </div>
         </div>
       </div>

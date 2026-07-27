@@ -342,6 +342,45 @@ struct SystemStats {
     mem_total: u64,  // bytes
 }
 
+/// Envia a skin do jogador para o Core (que a serve para o CustomSkinLoader).
+#[tauri::command]
+async fn upload_skin(
+    server: String,
+    profile_id: String,
+    username: String,
+    file_path: String,
+) -> Result<(), String> {
+    let bytes = tokio::fs::read(&file_path)
+        .await
+        .map_err(|e| format!("não foi possível ler o arquivo: {e}"))?;
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Err("o arquivo precisa ser um PNG de skin".into());
+    }
+    if bytes.len() > 512 * 1024 {
+        return Err("arquivo grande demais para uma skin".into());
+    }
+    let http = client();
+    let url = format!(
+        "{}/api/v1/public/skins/{}",
+        server.trim_end_matches('/'),
+        username
+    );
+    let res = http
+        .post(&url)
+        .header("X-Aether-Profile", profile_id)
+        .header("Content-Type", "image/png")
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| format!("falha ao enviar: {e}"))?;
+    if !res.status().is_success() {
+        let code = res.status();
+        let msg = res.text().await.unwrap_or_default();
+        return Err(format!("servidor recusou ({code}): {msg}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn system_stats(state: tauri::State<SysState>) -> Result<SystemStats, String> {
     let mut sys = state.0.lock().map_err(|e| e.to_string())?;
@@ -387,6 +426,7 @@ pub fn run() {
             content::modrinth_install,
             content::content_remove,
             ping::server_ping,
+            upload_skin,
             system_stats
         ])
         .run(tauri::generate_context!())
