@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState, type ReactElement } from "react";
@@ -20,6 +21,8 @@ interface Server {
   /** Endereço do servidor de jogo (host ou host:porta) para entrar direto.
    *  Vazio = o launcher deriva do endereço do Core + porta do status. */
   gameAddress?: string;
+  /** URL do mapa web (BlueMap/Dynmap) para embutir na tela Mapa. */
+  mapUrl?: string;
 }
 
 interface ServerInfo {
@@ -517,7 +520,7 @@ function Shell(props: {
             <NavItem icon="dashboard" label="Dashboard" on={section === "dashboard"} onClick={() => props.onSection("dashboard")} />
             <NavItem icon="content" label="Conteúdo" on={section === "content"} onClick={() => props.onSection("content")} />
             <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
-            <NavItem icon="map" label="Mapa" soon on={section === "map"} onClick={() => props.onSection("map")} />
+            <NavItem icon="map" label="Mapa" on={section === "map"} onClick={() => props.onSection("map")} />
           </div>
           <div className="nav-group">
             <span className="eyebrow">Você</span>
@@ -541,7 +544,7 @@ function Shell(props: {
           {section === "dashboard" && <DashboardSection server={current} engine={engine} stats={stats} onConfig={() => props.onSection("settings")} />}
           {section === "content" && <ContentSection server={current} />}
           {section === "files" && <FilesSection server={current} />}
-          {section === "map" && <SoonSection title="Mapa" lead="Ver o mundo e as construções direto no launcher." items={["mapa ao vivo via BlueMap no servidor (preferencial)", "ou ler o JourneyMap do seu PC (o que você explorou)", "opcional, ligado por servidor"]} />}
+          {section === "map" && <MapSection server={current} />}
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
           {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
           {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} iconPack={props.iconPack} onIconPack={props.onIconPack} />}
@@ -671,6 +674,7 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
   const [dir, setDir] = useState(initial?.dir ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
   const [gameAddress, setGameAddress] = useState(initial?.gameAddress ?? "");
+  const [mapUrl, setMapUrl] = useState(initial?.mapUrl ?? "");
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
 
@@ -683,7 +687,7 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
     setError(""); setTesting(true);
     try {
       const info = await invoke<ServerInfo>("server_info", { server: server.trim(), profileId: profileId.trim() });
-      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name, gameAddress: gameAddress.trim() || undefined });
+      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name, gameAddress: gameAddress.trim() || undefined, mapUrl: mapUrl.trim() || undefined });
     } catch (e) {
       setError(String(e));
     } finally { setTesting(false); }
@@ -711,6 +715,11 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
           <label>Endereço do servidor de jogo (opcional)</label>
           <input placeholder="ex.: mc.meuserver.com  ou  192.168.1.10:25565" value={gameAddress} onChange={(e) => setGameAddress(e.target.value)} />
           <p className="hint">Para entrar direto no servidor ao clicar em Jogar. Use o mesmo endereço que você digita no Minecraft. Vazio = o launcher tenta sozinho.</p>
+        </div>
+        <div className="field">
+          <label>URL do mapa (opcional)</label>
+          <input placeholder="ex.: https://map.meuserver.com  ou  http://192.168.1.10:8100" value={mapUrl} onChange={(e) => setMapUrl(e.target.value)} />
+          <p className="hint">O endereço do mapa web (BlueMap/Dynmap) do servidor. Preenche pra ver o mapa na aba Mapa.</p>
         </div>
         <div className="field">
           <label>Pasta do jogo</label>
@@ -1353,17 +1362,40 @@ function ContentSection({ server }: { server: Server }) {
   );
 }
 
-// ============================================================== Em breve ====
-function SoonSection({ title, lead, items }: { title: string; lead: string; items: string[] }) {
-  return (
-    <div className="page">
-      <h2>{title}</h2>
-      <div className="meta">{lead}</div>
-      <div className="soon">
-        <h4>Em construção</h4>
-        <p className="hint">Esta parte do redesign chega numa próxima atualização — o launcher se atualiza sozinho.</p>
-        <ul>{items.map((it, i) => <li key={i}>{it}</li>)}</ul>
+// ================================================================ Mapa ======
+function MapSection({ server }: { server: Server }) {
+  const url = server.mapUrl?.trim();
+  const [key, setKey] = useState(0);
+
+  if (!url) {
+    return (
+      <div className="page">
+        <h2>Mapa</h2>
+        <div className="meta">Veja o mundo e as construções do servidor, ao vivo.</div>
+        <div className="soon">
+          <h4>Configure o mapa</h4>
+          <p className="hint">O mapa vem de um servidor de mapa web (BlueMap ou Dynmap) rodando no seu servidor. Com ele no ar:</p>
+          <ul>
+            <li>vá em <b>Servidores → Editar</b> e cole a <b>URL do mapa</b> (ex.: <code>http://192.168.1.10:8100</code>).</li>
+            <li>volte aqui — o mapa aparece embutido.</li>
+          </ul>
+          <p className="hint">Ainda não tem BlueMap no servidor? Peça ao dono — é um mod + a porta do mapa aberta (te ajudo com o passo a passo).</p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="page map-page">
+      <div className="page-head">
+        <h2>Mapa</h2>
+        <div className="actions">
+          <button className="btn ghost" onClick={() => setKey((k) => k + 1)}>Recarregar</button>
+          <button className="btn ghost" onClick={() => openUrl(url)}>Abrir no navegador</button>
+        </div>
+      </div>
+      <iframe key={key} className="map-frame" src={url} title="Mapa do servidor" referrerPolicy="no-referrer" />
     </div>
   );
 }
+
