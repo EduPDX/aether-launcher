@@ -114,7 +114,7 @@ pub fn verify_and_parse(
             .cloned()
             .ok_or_else(|| SyncError::BadPayload(format!("campo ausente: {field}")))
     };
-    Ok(Manifest {
+    let manifest = Manifest {
         instance: serde_json::from_value(parse("instance")?)
             .map_err(|e| SyncError::BadPayload(e.to_string()))?,
         profile: serde_json::from_value(parse("profile")?)
@@ -130,7 +130,26 @@ pub fn verify_and_parse(
         game: manifest_value
             .get("game")
             .and_then(|g| serde_json::from_value(g.clone()).ok()),
-    })
+    };
+    for file in &manifest.files {
+        validate_relative_path(&file.path, false)?;
+    }
+    for folder in &manifest.managed {
+        validate_relative_path(&folder.dir, true)?;
+    }
+    Ok(manifest)
+}
+
+fn validate_relative_path(path: &str, allow_root: bool) -> Result<(), SyncError> {
+    if allow_root && (path.is_empty() || path == ".") {
+        return Ok(());
+    }
+    if path.is_empty() || path.starts_with('/') || path.contains(['\\', ':', '\0'])
+        || path.split('/').any(|part| part == ".." || part == "." || part.is_empty())
+    {
+        return Err(SyncError::BadPayload(format!("caminho inseguro: {path}")));
+    }
+    Ok(())
 }
 
 /// Case-insensitive wildcard match supporting `*` and `?` (fnmatch subset).
@@ -308,6 +327,15 @@ mod tests {
         assert!(wildcard_match("a.jar", "?.jar"));
         assert!(!wildcard_match("alpha.txt", "*.jar"));
         assert!(wildcard_match("qualquer", "*"));
+    }
+
+    #[test]
+    fn caminhos_do_manifesto_nao_escapam_da_raiz() {
+        for path in ["../x", "mods/../../x", "/tmp/x", "C:/x", "..\\x", "mods/./x", ""] {
+            assert!(validate_relative_path(path, false).is_err(), "{path}");
+        }
+        assert!(validate_relative_path("mods/exemplo.jar", false).is_ok());
+        assert!(validate_relative_path(".", true).is_ok());
     }
 
     #[test]

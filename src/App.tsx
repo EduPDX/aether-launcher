@@ -7,9 +7,17 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import "./App.css";
+import "./VisualRefresh.css";
+import { InviteSetup, ServerCover, invitationPatch, type Invitation } from "./InviteSetup";
+import { PlayerRoster, type OnlinePlayers } from "./PlayerRoster";
 
 // ============================================================== tipos =======
-interface Server {
+export interface Server {
+  invitation?: string;
+  instanceId?: string;
+  autojoin?: boolean;
+  coverUrl?: string;
+  coverCredit?: string;
   server: string;
   profileId: string;
   dir: string;
@@ -33,7 +41,7 @@ interface ServerInfo {
   total_size: number;
   state: string;
   port?: number | null;
-  players?: { online: number; max: number } | null;
+  players?: OnlinePlayers | null;
   latency_ms?: number | null;
 }
 
@@ -324,7 +332,7 @@ function usePlayEngine(server: Server) {
     const load = () =>
       invoke<ServerInfo>("server_info", { server: server.server, profileId: server.profileId })
         .then((i) => !cancelled && setInfo(i))
-        .catch((e) => !cancelled && setError(String(e)));
+        .catch((e) => { if (!cancelled) { setInfo(null); setError(String(e)); } });
     load();
     const timer = setInterval(load, 15000);
     return () => { cancelled = true; clearInterval(timer); };
@@ -363,7 +371,7 @@ function usePlayEngine(server: Server) {
       // Auto-join: entra direto no servidor. Usa o endereço explícito se houver;
       // senão deriva do endereço do Core + porta do status.
       let quickPlay: string | null = null;
-      if (localStorage.getItem("aether.launcher.autojoin") !== "off") {
+      if (server.autojoin ?? (localStorage.getItem("aether.launcher.autojoin") !== "off")) {
         const explicit = server.gameAddress?.trim();
         if (explicit) {
           quickPlay = explicit;
@@ -432,6 +440,33 @@ export default function App() {
 
   const stats = useSystemStats();
 
+  const inviteKeys = JSON.stringify(servers.filter(s => s.invitation).map(s => ({ invitation: s.invitation!, instanceId: s.instanceId, profileId: s.profileId })));
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const links = JSON.parse(inviteKeys) as { invitation: string; instanceId?: string; profileId: string }[];
+      const updates = await Promise.all(links.map(async entry => {
+        try {
+          const data = await invoke<Invitation>("resolve_launcher_invite", { invitation: entry.invitation });
+          if (data.profile_id !== entry.profileId || (entry.instanceId && data.instance_id !== entry.instanceId)) return null;
+          return { invitation: entry.invitation, patch: invitationPatch(data) };
+        } catch { return null; }
+      }));
+      if (cancelled || !updates.some(Boolean)) return;
+      setServers(previous => {
+        const next = previous.map(s => {
+          const update = updates.find(u => u?.invitation === s.invitation);
+          return update ? { ...s, ...update.patch } : s;
+        });
+        if (JSON.stringify(next) === JSON.stringify(previous)) return previous;
+        saveServers(next); return next;
+      });
+    };
+    void refresh();
+    const timer = setInterval(() => { void refresh(); }, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [inviteKeys]);
+
   useEffect(() => {
     applyPreset(preset);
     localStorage.setItem(THEME_KEY, preset);
@@ -475,7 +510,7 @@ export default function App() {
 
   return <Shell
     servers={servers} active={active} current={current} section={section} preset={preset} stats={stats}
-    autojoin={autojoin} onAutojoin={setAutojoin} iconPack={iconPack} onIconPack={setIconPack}
+    autojoin={current.autojoin ?? autojoin} onAutojoin={(v) => { setAutojoin(v); patch({ autojoin: v }); }} iconPack={iconPack} onIconPack={setIconPack}
     onSection={setSection} onPreset={setPreset} onPatch={patch}
     onSwitch={(i) => { persist(servers, i); setSection("dashboard"); }}
     onAdd={() => setEditing("new")} onEdit={(i) => setEditing(i)}
@@ -566,11 +601,19 @@ function Shell(props: {
 
 function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: string; on: boolean; soon?: boolean; onClick: () => void }) {
   return (
-    <button className={`nav ${on ? "on" : ""}`} onClick={onClick}>
+    <button className={`nav ${on ? "on" : ""}`} onClick={onClick} aria-label={label} title={label} aria-current={on ? "page" : undefined}>
       <Icon n={icon} /><span>{label}</span>
       {soon && <span className="soon-tag">breve</span>}
     </button>
   );
+}
+
+function SectionHeading({ title, description, eyebrow = "Seu espaço de jogo" }: { title: string; description: string; eyebrow?: string }) {
+  return <div className="section-heading"><span className="eyebrow">{eyebrow}</span><h2>{title}</h2><p>{description}</p></div>;
+}
+
+function EmptyState({ icon, title, description }: { icon: IconName; title: string; description: string }) {
+  return <div className="empty-state"><span className="empty-icon"><Icon n={icon} /></span><h3>{title}</h3><p>{description}</p></div>;
 }
 
 // ============================================================ Dashboard =====
@@ -590,11 +633,13 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 
   return (
     <div className="page">
+      <SectionHeading title="Vamos jogar?" description={`Bem-vindo, ${server.username}. Seu próximo mundo está aqui.`} eyebrow="Visão geral" />
       <div className="banner">
+        <ServerCover url={server.coverUrl} credit={server.coverCredit} />
         <div className="brow">Servidor</div>
         <div className="banner-row">
           <div>
-            <h3>{info?.instance_name ?? server.label ?? "Conectando…"}</h3>
+            <h3>{server.label ?? info?.instance_name ?? "Conectando…"}</h3>
             <p className="desc">Sincronize, entre e continue de onde parou.</p>
             <div className="chips">
               {info && <span className="bchip"><span className={`srv-dot ${stateClass}`} />{STATE_LABEL[info.state] ?? info.state}</span>}
@@ -620,6 +665,7 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
           <div className="wl"><Icon n="players" />Jogadores</div>
           <div className="wv tnum">{pcount ? pcount.online : "—"}<small> / {pcount ? pcount.max : "—"}</small></div>
           <div className="hint" style={{ marginTop: 10 }}>{pcount ? "online agora" : info?.state === "running" ? "consultando…" : "servidor offline"}</div>
+          <PlayerRoster players={pcount} />
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="ping" />Ping</div>
@@ -638,9 +684,12 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
         </div>
       </div>
 
-      <div className="row" style={{ marginTop: 16 }}>
+      <div className="maintenance-bar">
+        <div><h4>Prepare sua próxima sessão</h4><p>Confira os arquivos e mantenha seu jogo atualizado.</p></div>
+        <div className="row">
         <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
         <button className="btn" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
+        </div>
       </div>
 
       {activity && (
@@ -668,7 +717,13 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 }
 
 // =============================================================== Setup ======
-function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void }) {
+function SetupScreen(props: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void }) {
+  const [manual, setManual] = useState(!!props.initial && !props.initial.invitation);
+  if (!manual) return <InviteSetup {...props} onManual={() => setManual(true)} />;
+  return <ManualSetupScreen {...props} onInvite={() => setManual(false)} />;
+}
+
+function ManualSetupScreen({ initial, onSave, onCancel, onInvite }: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void; onInvite: () => void }) {
   const [server, setServer] = useState(initial?.server ?? "");
   const [profileId, setProfileId] = useState(initial?.profileId ?? "");
   const [dir, setDir] = useState(initial?.dir ?? "");
@@ -687,18 +742,21 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
     setError(""); setTesting(true);
     try {
       const info = await invoke<ServerInfo>("server_info", { server: server.trim(), profileId: profileId.trim() });
-      onSave({ server: server.trim(), profileId: profileId.trim(), dir, username: username.trim(), memoryMb: initial?.memoryMb, label: info.instance_name, gameAddress: gameAddress.trim() || undefined, mapUrl: mapUrl.trim() || undefined });
+      const target = dir || await invoke<string>("default_game_dir", { server: server.trim(), profileId: profileId.trim() });
+      onSave({ server: server.trim(), profileId: profileId.trim(), dir: target, username: username.trim(), autojoin: initial?.autojoin, memoryMb: initial?.memoryMb, label: info.instance_name, gameAddress: gameAddress.trim() || undefined, mapUrl: mapUrl.trim() || undefined });
     } catch (e) {
       setError(String(e));
     } finally { setTesting(false); }
   }
 
-  const valido = server.trim() && profileId.trim() && dir && username.trim();
+  const valido = server.trim() && profileId.trim() && username.trim();
 
   return (
     <div className="setup">
       <div className="brand"><BrandLogo size={30} /><h1>{initial ? "Editar servidor" : "Aether Launcher"}</h1></div>
       <div className="card">
+        <button className="btn ghost" onClick={onInvite}>Usar convite do servidor</button>
+        {initial?.invitation && <p className="hint">Salvar manualmente desliga a atualização automática pelo convite.</p>}
         <div className="field">
           <label>Endereço do servidor</label>
           <input placeholder="http://192.168.1.10:8600" value={server} onChange={(e) => setServer(e.target.value)} />
@@ -722,11 +780,12 @@ function SetupScreen({ initial, onSave, onCancel }: { initial: Server | null; on
           <p className="hint">O endereço do mapa web (BlueMap/Dynmap) do servidor. Preenche pra ver o mapa na aba Mapa.</p>
         </div>
         <div className="field">
-          <label>Pasta do jogo</label>
+          <label>Pasta do jogo (opcional)</label>
           <div className="row">
             <input placeholder="C:\...\.minecraft" value={dir} readOnly />
             <button className="btn" onClick={pickDir}>Escolher…</button>
           </div>
+          <p className="hint">Sem escolher uma pasta, o Aether cria uma instalação separada na pasta de dados do seu usuário.</p>
         </div>
         {error && <p className="error">{error}</p>}
         <div className="row" style={{ marginTop: 6 }}>
@@ -747,7 +806,7 @@ function ServersSection({ servers, active, onSwitch, onAdd, onEdit, onRemove }: 
   return (
     <div className="page">
       <div className="page-head">
-        <h2>Servidores</h2>
+        <SectionHeading title="Seus servidores" description="Escolha onde jogar ou conecte um novo servidor." eyebrow="Biblioteca" />
         <div className="actions"><button className="btn primary" onClick={onAdd}>+ Adicionar</button></div>
       </div>
       <div className="srv-grid">
@@ -755,6 +814,7 @@ function ServersSection({ servers, active, onSwitch, onAdd, onEdit, onRemove }: 
           <div key={i} className={`srv-card ${i === active ? "active" : ""}`}>
             <button className="srv-body" onClick={() => onSwitch(i)}>
               <div className="srv-banner">
+                <ServerCover url={s.coverUrl} credit={s.coverCredit} />
                 {i === active && <span className="srv-badge">ativo</span>}
                 <span className="srv-ico">{(s.label || s.server).charAt(0).toUpperCase()}</span>
               </div>
@@ -928,7 +988,7 @@ function FilesSection({ server }: { server: Server }) {
   return (
     <div className="page">
       <div className="page-head">
-        <h2>Arquivos</h2>
+        <SectionHeading title="Arquivos do jogo" description="Explore sua instalação, edite arquivos locais e recupere itens da lixeira." eyebrow="Sua instalação" />
         {tab === "files" && (
           <div className="actions">
             <div className="vtoggle">
@@ -976,7 +1036,7 @@ function FilesSection({ server }: { server: Server }) {
             </div>
           )}
 
-          {entries.length === 0 && <p className="meta">Pasta vazia.</p>}
+          {entries.length === 0 && <EmptyState icon="folder" title="Espaço para começar" description="Esta pasta está vazia. Crie uma pasta ou um arquivo usando as ações acima." />}
 
           {view === "list" ? (
             <div className="file-list">
@@ -1021,7 +1081,7 @@ function FilesSection({ server }: { server: Server }) {
             <span className="eyebrow">Itens removidos — recuperáveis antes de sumir de vez</span>
             {trash.length > 0 && <button className="btn ghost danger" disabled={busy} onClick={emptyTrash}>Esvaziar lixeira</button>}
           </div>
-          {trash.length === 0 && <p className="meta">Lixeira vazia.</p>}
+          {trash.length === 0 && <EmptyState icon="trash" title="Tudo em seu lugar" description="Os arquivos removidos aparecem aqui e podem ser restaurados." />}
           {trash.map((t) => (
             <div key={t.id} className="trow">
               <span className={`ti ${t.is_dir ? "dir" : ""}`}><Icon n={t.is_dir ? "folder" : "file"} /></span>
@@ -1063,15 +1123,14 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
 
   return (
     <div className="page">
-      <h2>Configurações</h2>
-      <div className="meta">Ajustes do launcher e do jogo</div>
+      <SectionHeading title="Do seu jeito" description="Personalize o launcher e ajuste sua experiência no jogo. As alterações são salvas automaticamente." eyebrow="Configurações" />
 
       <span className="eyebrow set-eyebrow">Aparência</span>
       <div className="setting">
         <label>Tema — os mesmos do painel do servidor</label>
         <div className="theme-grid">
           {Object.entries(THEMES).map(([id, t]) => (
-            <button key={id} className={`tcard ${preset === id ? "on" : ""}`} title={t.label} onClick={() => onPreset(id)}>
+            <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label} onClick={() => onPreset(id)}>
               <span className="tprev" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
                 <i className="tp-s" style={{ background: t.tokens.surface2 }} />
                 <i className="tp-d" style={{ background: t.tokens.accent }} />
@@ -1086,7 +1145,7 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
         <label>Ícones de arquivo</label>
         <div className="iconpack-grid">
           {ICON_PACKS.map((p) => (
-            <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
+            <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
               <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
               {p.label}
             </button>
@@ -1099,12 +1158,12 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
       <div className="setting" style={{ paddingTop: 4, paddingBottom: 4 }}>
         <div className="set-row">
           <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
-          <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
+          <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} role="switch" aria-checked={autojoin} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
         </div>
         <div className="set-row">
           <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
           <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
-            <input type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
+            <input aria-label="Memória do jogo em GB" type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
             <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
           </div>
         </div>
@@ -1158,11 +1217,11 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
 
   return (
     <div className="page">
-      <h2>Skin</h2>
-      <div className="meta">Sua aparência dentro do jogo</div>
+      <SectionHeading title="Sua identidade" description="Um nome, uma aparência, seu jeito de explorar." eyebrow="Skin e jogador" />
 
       <div className="skin-split">
         <div className="skin-preview">
+          <div className="identity-caption"><span className="eyebrow">Jogador</span><h3>{server.username}</h3></div>
           <div className="skin-stage">
             {hasSkin ? (
               <div className="skin-face" style={{ backgroundImage: `url("${skinUrl}")` }} title="sua skin" />
@@ -1176,7 +1235,7 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
             )}
           </div>
           <div className={`skin-status ${hasSkin ? "on" : ""}`}>
-            {hasSkin === null ? "verificando…" : hasSkin ? "✔ Skin ativa" : "Nenhuma skin enviada"}
+            {hasSkin === null ? "Verificando imagem…" : hasSkin ? "✔ Imagem disponível no servidor" : "Nenhuma skin enviada"}
           </div>
         </div>
 
@@ -1289,8 +1348,7 @@ function ContentSection({ server }: { server: Server }) {
 
   return (
     <div className="page">
-      <h2>Conteúdo</h2>
-      <div className="meta">Shaders e texturas do Modrinth — instalam do lado do cliente, sem afetar o servidor.</div>
+      <SectionHeading title="Um novo olhar para seu mundo" description="Descubra shaders e texturas do Modrinth para personalizar seu jogo." eyebrow="Conteúdo" />
 
       <div className="content-tabs">
         <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => setKind("shader")}>
@@ -1322,9 +1380,9 @@ function ContentSection({ server }: { server: Server }) {
       )}
 
       {loading && results.length === 0 ? (
-        <div className="c-empty">Buscando…</div>
+        <div className="content-skeleton" role="status" aria-label="Buscando conteúdo">{[0, 1, 2, 3].map((i) => <div key={i}><i /><span /><span /></div>)}</div>
       ) : results.length === 0 ? (
-        <div className="c-empty">Nada encontrado{useCompat && gameVersion ? ` para ${gameVersion}` : ""}.</div>
+        <EmptyState icon="content" title="Nenhum resultado por aqui" description={`Tente outro nome ou ajuste o filtro de compatibilidade${useCompat && gameVersion ? ` com ${gameVersion}` : ""}.`} />
       ) : (
         <div className="mod-grid">
           {results.map((item) => {
@@ -1370,8 +1428,8 @@ function MapSection({ server }: { server: Server }) {
   if (!url) {
     return (
       <div className="page">
-        <h2>Mapa</h2>
-        <div className="meta">Veja o mundo e as construções do servidor, ao vivo.</div>
+        <SectionHeading title="Explore além do horizonte" description="Veja o mundo e as construções do servidor em um só lugar." eyebrow="Mapa" />
+        <EmptyState icon="map" title="Seu mundo, visto de cima" description="Conecte o mapa web do servidor para acompanhar suas próximas explorações." />
         <div className="soon">
           <h4>Configure o mapa</h4>
           <p className="hint">O mapa vem de um servidor de mapa web (BlueMap ou Dynmap) rodando no seu servidor. Com ele no ar:</p>
@@ -1379,7 +1437,7 @@ function MapSection({ server }: { server: Server }) {
             <li>vá em <b>Servidores → Editar</b> e cole a <b>URL do mapa</b> (ex.: <code>http://192.168.1.10:8100</code>).</li>
             <li>volte aqui — o mapa aparece embutido.</li>
           </ul>
-          <p className="hint">Ainda não tem BlueMap no servidor? Peça ao dono — é um mod + a porta do mapa aberta (te ajudo com o passo a passo).</p>
+          <p className="hint">Peça ao administrador o endereço do mapa do servidor.</p>
         </div>
       </div>
     );
@@ -1388,7 +1446,7 @@ function MapSection({ server }: { server: Server }) {
   return (
     <div className="page map-page">
       <div className="page-head">
-        <h2>Mapa</h2>
+        <SectionHeading title="Mapa do servidor" description={server.label ?? "Explore seu mundo"} eyebrow="Exploração" />
         <div className="actions">
           <button className="btn ghost" onClick={() => setKey((k) => k + 1)}>Recarregar</button>
           <button className="btn ghost" onClick={() => openUrl(url)}>Abrir no navegador</button>
@@ -1398,4 +1456,3 @@ function MapSection({ server }: { server: Server }) {
     </div>
   );
 }
-

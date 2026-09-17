@@ -426,6 +426,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .toggle.on::after { left: 20px; }
 
 /* =============================================================== SKIN ==== */
+.player-roster { margin-top: 12px; font-size: 13px; }
+.player-roster summary { cursor: pointer; color: var(--accent); padding: 6px 0; }
+.player-roster summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.player-roster ul { padding-left: 20px; max-height: 180px; overflow: auto; }
+.player-roster li { padding: 3px 0; overflow-wrap: anywhere; }
 .skin-split { display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start; }
 .skin-stage { border: 1px solid var(--border); border-radius: var(--r-lg); background: radial-gradient(80% 70% at 50% 18%, var(--surface-3), var(--surface)); display: grid; place-items: center; padding: 28px; min-height: 300px; }
 /* Recorte do rosto (8,8) de uma skin 64x64, ampliado e pixelado. */

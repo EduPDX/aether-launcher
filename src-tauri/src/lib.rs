@@ -1,4 +1,5 @@
 pub mod content;
+mod invite;
 pub mod files;
 pub mod java;
 pub mod minecraft;
@@ -32,10 +33,13 @@ struct ServerInfo {
     latency_ms: Option<u64>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, serde::Deserialize, Clone)]
 struct Players {
     online: i64,
     max: i64,
+    names: Option<Vec<String>>,
+    #[serde(default)]
+    names_complete: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -118,10 +122,7 @@ async fn server_info(server: String, profile_id: String) -> Result<ServerInfo, S
         .as_ref()
         .and_then(|v| v.get("players"))
         .filter(|p| !p.is_null())
-        .map(|p| Players {
-            online: p.get("online").and_then(|x| x.as_i64()).unwrap_or(0),
-            max: p.get("max").and_then(|x| x.as_i64()).unwrap_or(0),
-        });
+        .and_then(|p| serde_json::from_value::<Players>(p.clone()).ok());
 
     Ok(ServerInfo {
         instance_name: manifest.instance.name,
@@ -402,6 +403,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            invite::resolve_launcher_invite,
+            invite::default_game_dir,
             server_info,
             check_sync,
             run_sync,
@@ -431,4 +434,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod player_status_tests {
+    use super::Players;
+
+    #[test]
+    fn aceita_core_antigo_sem_lista_de_nomes() {
+        let players: Players = serde_json::from_value(serde_json::json!({"online": 2, "max": 20})).unwrap();
+        assert_eq!(players.online, 2);
+        assert!(players.names.is_none());
+        assert!(!players.names_complete);
+    }
+
+    #[test]
+    fn preserva_nomes_e_indicador_de_lista_parcial() {
+        let players: Players = serde_json::from_value(serde_json::json!({
+            "online": 3, "max": 20, "names": ["Edu_PDX"], "names_complete": false
+        })).unwrap();
+        assert_eq!(players.names.unwrap(), vec!["Edu_PDX"]);
+        assert!(!players.names_complete);
+    }
 }
