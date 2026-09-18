@@ -6,6 +6,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { SkinViewer } from "skinview3d";
 import "./App.css";
 import "./VisualRefresh.css";
 import { InviteSetup, ServerCover, invitationPatch, type Invitation } from "./InviteSetup";
@@ -788,6 +789,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.11", t: "Skin em 3D rotacionável, Conteúdo com mais colunas e filtros horizontais" },
   { v: "0.4.10", t: "Mods em grade, página de Downloads de verdade, tela de adicionar servidor centralizada e interface mais limpa" },
   { v: "0.4.9", t: "Mods do servidor, Mundos locais em grade, Configurações e Conteúdo em dois painéis, jogadores online por nome e lixeira do sync que não cresce mais" },
   { v: "0.4.8", t: "Visual fiel ao protótipo: banner do servidor, sidebar completa, dock com abas e status bar" },
@@ -1376,7 +1378,7 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
           {cat === "aparencia" && (
             <>
               <div className="setting">
-                <label>Tema — os mesmos do painel do servidor</label>
+                <label>Tema</label>
                 <div className="theme-grid">
                   {Object.entries(THEMES).map(([id, t]) => (
                     <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label} onClick={() => onPreset(id)}>
@@ -1448,27 +1450,45 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
 type SettingsCat = "aparencia" | "jogo" | "conta";
 
 // ================================================================ Skin ======
+/** Boneco 3D da skin, rotacionável com o mouse (arraste). */
+function SkinViewer3D({ skin }: { skin: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewerRef = useRef<SkinViewer | null>(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const viewer = new SkinViewer({ canvas: canvasRef.current, width: 240, height: 320 });
+    viewer.controls.enableZoom = false;
+    viewer.controls.enablePan = false;
+    viewer.zoom = 0.9;
+    viewer.autoRotate = false;
+    viewer.playerObject.rotation.y = 0.4; // ângulo inicial para parecer 3D
+    viewerRef.current = viewer;
+    return () => viewer.dispose();
+  }, []);
+  useEffect(() => { void viewerRef.current?.loadSkin(skin).catch(() => {}); }, [skin]);
+  return <canvas ref={canvasRef} className="skin-canvas" aria-label="Prévia 3D da skin — arraste para girar" />;
+}
+
 function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial<Server>) => void }) {
   const [nick, setNick] = useState(server.username);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [bust, setBust] = useState(0);
-  const [hasSkin, setHasSkin] = useState<boolean | null>(null);
+  // undefined = carregando · null = sem skin · string = data URI da skin
+  const [skinData, setSkinData] = useState<string | null | undefined>(undefined);
+  const hasSkin = skinData != null;
   useEffect(() => setNick(server.username), [server.username]);
 
-  const base = server.server.replace(/\/$/, "");
-  const skinUrl = `${base}/api/v1/public/skins/${encodeURIComponent(server.username)}.png?t=${bust}`;
-
-  // Detecta se já existe skin enviada (pra mostrar o rosto ou o boneco padrão).
+  // Busca a skin pelo Rust (data URI) — serve ao visualizador 3D sem CORS.
   useEffect(() => {
-    setHasSkin(null);
-    const img = new Image();
-    img.onload = () => setHasSkin(true);
-    img.onerror = () => setHasSkin(false);
-    img.src = skinUrl;
-    return () => { img.onload = null; img.onerror = null; };
-  }, [skinUrl]);
+    let alive = true;
+    setSkinData(undefined);
+    invoke<string | null>("skin_png", { server: server.server, username: server.username })
+      .then((d) => { if (alive) setSkinData(d); })
+      .catch(() => { if (alive) setSkinData(null); });
+    return () => { alive = false; };
+  }, [server.server, server.username, bust]);
 
   async function pickAndUpload() {
     setError(""); setOk("");
@@ -1494,8 +1514,10 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
         <div className="skin-preview">
           <div className="identity-caption"><span className="eyebrow">Jogador</span><h3>{server.username}</h3></div>
           <div className="skin-stage">
-            {hasSkin ? (
-              <div className="skin-face" style={{ backgroundImage: `url("${skinUrl}")` }} title="sua skin" />
+            {skinData ? (
+              <SkinViewer3D skin={skinData} />
+            ) : skinData === undefined ? (
+              <div className="skin-loading">Carregando…</div>
             ) : (
               <div className="mc">
                 <div className="part head"><div className="face"><i /><i /></div></div>
@@ -1506,7 +1528,7 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
             )}
           </div>
           <div className={`skin-status ${hasSkin ? "on" : ""}`}>
-            {hasSkin === null ? "Verificando imagem…" : hasSkin ? "✔ Imagem disponível no servidor" : "Nenhuma skin enviada"}
+            {skinData === undefined ? "Verificando imagem…" : hasSkin ? "✔ Arraste para girar o boneco" : "Nenhuma skin enviada"}
           </div>
         </div>
 
@@ -1642,6 +1664,40 @@ const CONTENT_CATEGORIES: Record<ContentKind, { id: string; label: string }[]> =
   ],
 };
 
+/** Botão + popover para um filtro (Compatível, Categoria). Fecha ao clicar fora. */
+function FilterMenu({ label, value, options, onSelect }: {
+  label: string; value: string | null;
+  options: { id: string | null; label: string }[];
+  onSelect: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const current = options.find((o) => o.id === value) ?? options[0];
+  return (
+    <div className="fmenu" ref={ref}>
+      <button className={`fmenu-btn ${open ? "open" : ""}`} onClick={() => setOpen((v) => !v)}>
+        <span className="fmenu-lbl">{label}</span><b>{current.label}</b>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="fmenu-pop">
+          {options.map((o) => (
+            <button key={String(o.id)} className={`fmenu-item ${o.id === value ? "on" : ""}`} onClick={() => { onSelect(o.id); setOpen(false); }}>
+              <span className="fdot" />{o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ContentSection({ server }: { server: Server }) {
   const [kind, setKind] = useState<ContentKind>("shader");
   const [query, setQuery] = useState("");
@@ -1708,58 +1764,46 @@ function ContentSection({ server }: { server: Server }) {
     <div className="page">
       <SectionHeading title="Conteúdo" eyebrow="Conteúdo" />
 
-      <div className="content-tabs">
-        <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => switchKind("shader")}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></svg>Shaders
-        </button>
-        <button className={`content-tab ${!isShader ? "on" : ""}`} onClick={() => switchKind("resourcepack")}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18" /></svg>Texturas
-        </button>
+      <div className="content-toolbar">
+        <div className="content-tabs">
+          <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => switchKind("shader")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></svg>Shaders
+          </button>
+          <button className={`content-tab ${!isShader ? "on" : ""}`} onClick={() => switchKind("resourcepack")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18" /></svg>Texturas
+          </button>
+        </div>
+        <div className="c-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
+        </div>
+        <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
+        {gameVersion && (
+          <FilterMenu label="Versão" value={useCompat ? "compat" : "all"}
+            options={[{ id: "compat", label: `${gameVersion}` }, { id: "all", label: "Todas" }]}
+            onSelect={(v) => setUseCompat(v === "compat")} />
+        )}
+        <FilterMenu label="Categoria" value={category}
+          options={[{ id: null, label: "Todas" }, ...CONTENT_CATEGORIES[kind]]}
+          onSelect={setCategory} />
       </div>
 
-      <div className="content-split">
-        <aside className="filters">
-          {gameVersion && (
-            <div className="fgroup">
-              <span className="eyebrow">Compatível com</span>
-              <button className={`facet ${useCompat ? "on" : ""}`} onClick={() => setUseCompat(true)}><span className="fdot" />{gameVersion} (servidor)</button>
-              <button className={`facet ${!useCompat ? "on" : ""}`} onClick={() => setUseCompat(false)}><span className="fdot" />Todas as versões</button>
-            </div>
-          )}
-          <div className="fgroup">
-            <span className="eyebrow">Categoria</span>
-            <button className={`facet ${category === null ? "on" : ""}`} onClick={() => setCategory(null)}><span className="fdot" />Todas</button>
-            {CONTENT_CATEGORIES[kind].map((c) => (
-              <button key={c.id} className={`facet ${category === c.id ? "on" : ""}`} onClick={() => setCategory(c.id)}><span className="fdot" />{c.label}</button>
-            ))}
-          </div>
-        </aside>
+      {error && <p className="error">{error}</p>}
 
-        <div className="content-main">
-          <div className="c-bar">
-            <div className="c-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-              <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
-            </div>
-            <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
-          </div>
+      {installing && (
+        <div className="c-progress">
+          <div className="cp-head"><span className="cp-name">Instalando {progress?.name ?? "…"}</span>{pct !== null && <span className="cp-pct">{pct}%</span>}</div>
+          <div className="progress-track"><div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
+        </div>
+      )}
 
-          {error && <p className="error">{error}</p>}
-
-          {installing && (
-            <div className="c-progress">
-              <div className="cp-head"><span className="cp-name">Instalando {progress?.name ?? "…"}</span>{pct !== null && <span className="cp-pct">{pct}%</span>}</div>
-              <div className="progress-track"><div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
-            </div>
-          )}
-
-          {loading && results.length === 0 ? (
-            <div className="content-skeleton" role="status" aria-label="Buscando conteúdo">{[0, 1, 2, 3].map((i) => <div key={i}><i /><span /><span /></div>)}</div>
-          ) : results.length === 0 ? (
-            <EmptyState icon="content" title="Nenhum resultado por aqui" description={`Tente outro nome ou ajuste os filtros${useCompat && gameVersion ? ` (compatível com ${gameVersion})` : ""}.`} />
-          ) : (
-            <div className="mod-grid">
-              {results.map((item) => {
+      {loading && results.length === 0 ? (
+        <div className="content-skeleton" role="status" aria-label="Buscando conteúdo">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i}><i /><span /><span /></div>)}</div>
+      ) : results.length === 0 ? (
+        <EmptyState icon="content" title="Nenhum resultado por aqui" description={`Tente outro nome ou ajuste os filtros${useCompat && gameVersion ? ` (compatível com ${gameVersion})` : ""}.`} />
+      ) : (
+        <div className="mod-grid">
+          {results.map((item) => {
             const isInstalled = !!installed[item.project_id];
             const busyThis = installing === item.project_id;
             return (
@@ -1786,11 +1830,8 @@ function ContentSection({ server }: { server: Server }) {
               </div>
             );
           })}
-            </div>
-          )}
-
         </div>
-      </div>
+      )}
     </div>
   );
 }

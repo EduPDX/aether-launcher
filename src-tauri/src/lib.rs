@@ -382,6 +382,27 @@ async fn upload_skin(
     Ok(())
 }
 
+/// Busca a skin do jogador no servidor e devolve como data URI base64. Feito no
+/// Rust (não no fetch do webview) para o visualizador 3D poder usar a imagem como
+/// textura WebGL sem esbarrar em CORS. `None` quando o jogador não tem skin.
+#[tauri::command]
+async fn skin_png(server: String, username: String) -> Result<Option<String>, String> {
+    let url = format!(
+        "{}/api/v1/public/skins/{}.png",
+        server.trim_end_matches('/'),
+        username
+    );
+    let http = client();
+    let res = http.get(&url).send().await.map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Ok(None);
+    }
+    let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(Some(format!("data:image/png;base64,{b64}")))
+}
+
 #[tauri::command]
 fn system_stats(state: tauri::State<SysState>) -> Result<SystemStats, String> {
     let mut sys = state.0.lock().map_err(|e| e.to_string())?;
@@ -432,6 +453,7 @@ pub fn run() {
             content::content_remove,
             ping::server_ping,
             upload_skin,
+            skin_png,
             system_stats
         ])
         .run(tauri::generate_context!())
