@@ -233,7 +233,7 @@ function BrandLogo({ size = 24 }: { size?: number }) {
   );
 }
 
-type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping" | "folder" | "file" | "trash" | "lock" | "download";
+type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping" | "folder" | "file" | "trash" | "lock" | "download" | "mods" | "worlds" | "friends" | "console" | "help" | "bell";
 
 function Icon({ n }: { n: IconName }) {
   const p: Record<IconName, ReactElement> = {
@@ -256,6 +256,12 @@ function Icon({ n }: { n: IconName }) {
     trash: <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13" />,
     lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
     download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
+    mods: <><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5M12 22V12" /></>,
+    worlds: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
+    friends: <><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3.2 3.2 0 0 1 0 6M18 14.4a5.5 5.5 0 0 1 3 5.6" /></>,
+    console: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3M13 15h4" /></>,
+    help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 2-2.5 3.5M12 17h.01" /></>,
+    bell: <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a2 2 0 0 0 3.4 0" />,
   };
   const filled = n === "play";
   return (
@@ -419,7 +425,7 @@ function usePlayEngine(server: Server) {
 }
 
 type Engine = ReturnType<typeof usePlayEngine>;
-type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings";
+type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "mods" | "worlds" | "friends" | "help";
 
 // Lazy: chamar getCurrentWindow() só na ação evita quebrar fora do Tauri.
 const win = {
@@ -530,6 +536,10 @@ function Shell(props: {
   const online = engine.info?.state === "running";
   const [palette, setPalette] = useState(false);
   const [dockOpen, setDockOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<DockTab>("console");
+  const openDock = (t: DockTab) => { setDockTab(t); setDockOpen(true); };
+  const dlCount = engine.activity ? 1 : 0;
+  const problems = engine.error ? 1 : 0;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); }
@@ -560,11 +570,22 @@ function Shell(props: {
           <span className="nm">{current.label || current.server}</span>
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
         </button>
+        <div className="tb-drag" data-tauri-drag-region />
         <button className="cmd" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-          <span className="cmd-lbl">Ir para…</span><kbd>Ctrl K</kbd>
+          <span className="cmd-lbl">Buscar mods, arquivos, ajustes…</span><kbd>Ctrl K</kbd>
         </button>
         <div className="tb-drag" data-tauri-drag-region />
+        <div className="tb-right">
+          <button className="icon-btn" onClick={() => openDock("downloads")} title="Downloads">
+            <Icon n="download" />
+          </button>
+          <button className="icon-btn" onClick={() => openDock("problemas")} title="Notificações">
+            {problems > 0 && <span className="dot-badge" />}
+            <Icon n="bell" />
+          </button>
+          <div className="tb-avatar">{current.username.charAt(0).toUpperCase()}</div>
+        </div>
         <div className="win-ctrls">
           <button onClick={() => win.minimize()} title="Minimizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg></button>
           <button onClick={() => win.toggleMaximize()} title="Maximizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="5" width="14" height="14" rx="1.5" /></svg></button>
@@ -578,17 +599,23 @@ function Shell(props: {
           <div className="nav-group">
             <span className="eyebrow">Servidor</span>
             <NavItem icon="dashboard" label="Dashboard" on={section === "dashboard"} onClick={() => props.onSection("dashboard")} />
+            <NavItem icon="mods" label="Mods" soon on={section === "mods"} onClick={() => props.onSection("mods")} />
             <NavItem icon="content" label="Conteúdo" on={section === "content"} onClick={() => props.onSection("content")} />
-            <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
+            <NavItem icon="worlds" label="Mundos" soon on={section === "worlds"} onClick={() => props.onSection("worlds")} />
             <NavItem icon="map" label="Mapa" on={section === "map"} onClick={() => props.onSection("map")} />
+            <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
+            <NavItem icon="console" label="Console" on={dockOpen && dockTab === "console"} onClick={() => openDock("console")} />
           </div>
           <div className="nav-group">
             <span className="eyebrow">Você</span>
+            <NavItem icon="download" label="Downloads" count={dlCount || undefined} hot={dlCount > 0} on={dockOpen && dockTab === "downloads"} onClick={() => openDock("downloads")} />
             <NavItem icon="servers" label="Servidores" on={section === "servers"} onClick={() => props.onSection("servers")} />
             <NavItem icon="skin" label="Skin" on={section === "skin"} onClick={() => props.onSection("skin")} />
+            <NavItem icon="friends" label="Amigos" soon on={section === "friends"} onClick={() => props.onSection("friends")} />
           </div>
           <div className="sb-foot">
             <NavItem icon="settings" label="Configurações" on={section === "settings"} onClick={() => props.onSection("settings")} />
+            <NavItem icon="help" label="Ajuda" soon on={section === "help"} onClick={() => props.onSection("help")} />
             <div className="acct-chip">
               <div className="avatar">{current.username.charAt(0).toUpperCase()}</div>
               <div className="txt">
@@ -608,33 +635,42 @@ function Shell(props: {
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
           {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
           {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} iconPack={props.iconPack} onIconPack={props.onIconPack} />}
+          {section === "mods" && <SoonSection icon="mods" eyebrow="Servidor" title="Gerenciador de mods" description="Listar, ativar e desativar cada mod instalado — direto daqui, sem mexer em pastas. Está a caminho; por ora, use Conteúdo para descobrir mods e Arquivos para inspecionar a instalação." />}
+          {section === "worlds" && <SoonSection icon="worlds" eyebrow="Servidor" title="Mundos" description="Ver os mundos do servidor, tamanho e último backup. Em breve; o mapa ao vivo já está na aba Mapa." />}
+          {section === "friends" && <SoonSection icon="friends" eyebrow="Você" title="Amigos" description="Ver quem está online e entrar junto com um clique. Em breve. Os jogadores online já aparecem no Dashboard." />}
+          {section === "help" && <SoonSection icon="help" eyebrow="Ajuda" title="Central de ajuda" description="Guias de instalação, solução de problemas e como pedir um convite ao administrador. Em breve." />}
         </main>
       </div>
 
-      <ConsoleDock log={engine.log} open={dockOpen} onToggle={() => setDockOpen((v) => !v)} />
+      <ConsoleDock engine={engine} open={dockOpen} tab={dockTab} onTab={setDockTab} onToggle={() => setDockOpen((v) => !v)} />
 
       {/* status bar */}
       <div className="statusbar">
-        <span className="si" title="uso do seu computador"><Icon n="cpu" />CPU {stats ? Math.round(stats.cpu) : "—"}%</span>
         <span className="si" title="uso do seu computador"><Icon n="ram" />RAM {stats ? `${(stats.mem_used / 1024 ** 3).toFixed(1)}/${(stats.mem_total / 1024 ** 3).toFixed(0)} GB` : "—"}</span>
+        <span className="si" title="uso do seu computador"><Icon n="cpu" />CPU {stats ? Math.round(stats.cpu) : "—"}%</span>
+        {engine.info?.latency_ms != null && <span className="si" title="latência até o servidor"><Icon n="ping" />{engine.info.latency_ms} ms</span>}
         <span className="sp" />
-        {engine.busy && <span className="si">{engine.activity?.label ?? "Trabalhando…"}</span>}
-        <span className="si">{STATE_LABEL[engine.info?.state ?? "unknown"] ?? "—"}</span>
-        <span className="si">{current.username}</span>
+        {engine.info?.channel && <span className="si on-dark">canal {engine.info.channel}</span>}
+        <span className="si on-dark"><span className={`srv-dot ${online ? "on-ink" : ""}`} style={online ? { background: "var(--accent-ink)", boxShadow: "none" } : undefined} />{engine.info ? "servidor " + (STATE_LABEL[engine.info.state] ?? engine.info.state) : "conectando…"}</span>
+        {engine.busy && <span className="si on-dark"><Icon n="download" />{engine.activity?.label ?? "trabalhando…"}</span>}
+        <span className="si on-dark"><Icon n="friends" />{current.username}</span>
       </div>
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
     </div>
   );
 }
 
-function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: string; on: boolean; soon?: boolean; onClick: () => void }) {
+function NavItem({ icon, label, on, soon, count, hot, onClick }: { icon: IconName; label: string; on: boolean; soon?: boolean; count?: number; hot?: boolean; onClick: () => void }) {
   return (
     <button className={`nav ${on ? "on" : ""}`} onClick={onClick} aria-label={label} title={label} aria-current={on ? "page" : undefined}>
       <Icon n={icon} /><span>{label}</span>
-      {soon && <span className="soon-tag">breve</span>}
+      {count != null && <span className={`count ${hot ? "hot" : ""}`}>{count}</span>}
+      {soon && count == null && <span className="soon-tag">breve</span>}
     </button>
   );
 }
+
+type DockTab = "console" | "downloads" | "problemas";
 
 type PaletteCommand = { label: string; hint?: string; icon: IconName; run: () => void };
 
@@ -674,23 +710,70 @@ function CommandPalette({ commands, onClose }: { commands: PaletteCommand[]; onC
   );
 }
 
-function ConsoleDock({ log, open, onToggle }: { log: string[]; open: boolean; onToggle: () => void }) {
+function ConsoleDock({ engine, open, tab, onTab, onToggle }: {
+  engine: ReturnType<typeof usePlayEngine>; open: boolean; tab: DockTab; onTab: (t: DockTab) => void; onToggle: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (open && ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log, open]);
+  const { log, activity, error } = engine;
+  const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
+  const dlCount = activity ? 1 : 0;
+  const problems = error ? 1 : 0;
+  useEffect(() => { if (open && tab === "console" && ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log, open, tab]);
+  const Tab = ({ id, label, badge }: { id: DockTab; label: string; badge?: number }) => (
+    <button className={`dock-tab ${tab === id ? "on" : ""}`} onClick={() => onTab(id)}>
+      {label}{badge ? <span className="dock-badge">{badge}</span> : null}
+    </button>
+  );
   return (
     <div className={`dock ${open ? "" : "collapsed"}`}>
-      <button className="dock-bar" onClick={onToggle} aria-expanded={open}>
-        <svg className="dock-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
-        <span className="dock-title">Console</span>
-        <span className="dock-count">{log.length ? `${log.length} linhas` : "vazio"}</span>
-      </button>
-      {open && (
+      <div className="dock-tabs">
+        <Tab id="console" label="Console" />
+        <Tab id="downloads" label="Downloads" badge={dlCount} />
+        <Tab id="problemas" label="Problemas" badge={problems} />
+        <div className="dock-actions">
+          <button className="icon-btn" title="Copiar console" onClick={() => { void navigator.clipboard?.writeText(log.join("\n")); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+          </button>
+          <button className="icon-btn dock-toggle" title="Expandir / recolher" onClick={onToggle} aria-expanded={open}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15"><path d="m6 15 6-6 6 6" /></svg>
+          </button>
+        </div>
+      </div>
+      {open && tab === "console" && (
         <div className="console" ref={ref}>
           {log.length
-            ? log.map((l, i) => <div className="cline" key={i}>{l}</div>)
-            : <div className="cline dim">Console vazio. Clique em Jogar ou Sincronizar para ver a saída.</div>}
+            ? log.map((l, i) => <div className="ln" key={i}><span className="msg">{l}</span></div>)
+            : <div className="ln dim"><span className="msg">Console vazio. Clique em Jogar ou Sincronizar para ver a saída.</span></div>}
         </div>
       )}
+      {open && tab === "downloads" && (
+        <div className="console">
+          {activity ? (
+            <div className="dock-dl">
+              <div className="dock-dl-top"><b>{activity.label}</b><span className="st">{activity.detail}{pct !== null ? ` · ${pct}%` : ""}</span></div>
+              <div className="track"><div className="fill" style={{ width: `${pct ?? 100}%` }} /></div>
+            </div>
+          ) : (
+            <div className="ln dim"><span className="msg">Nenhum download em andamento.</span></div>
+          )}
+        </div>
+      )}
+      {open && tab === "problemas" && (
+        <div className="console">
+          {error
+            ? <div className="ln"><span className="lv warn">ERRO</span><span className="msg">{error}</span></div>
+            : <div className="ln dim"><span className="msg">Nenhum problema. Tudo certo por aqui.</span></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SoonSection({ icon, eyebrow, title, description }: { icon: IconName; eyebrow: string; title: string; description: string }) {
+  return (
+    <div className="page">
+      <SectionHeading eyebrow={eyebrow} title={title} description="" />
+      <EmptyState icon={icon} title={title} description={description} />
     </div>
   );
 }
@@ -701,6 +784,24 @@ function SectionHeading({ title, description, eyebrow = "Seu espaço de jogo" }:
 
 function EmptyState({ icon, title, description }: { icon: IconName; title: string; description: string }) {
   return <div className="empty-state"><span className="empty-icon"><Icon n={icon} /></span><h3>{title}</h3><p>{description}</p></div>;
+}
+
+const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.8", t: "Visual fiel ao protótipo: banner do servidor, sidebar completa, dock com abas e status bar" },
+  { v: "0.4.7", t: "Redesign: onboarding, avatares, Ctrl+K e console dock" },
+  { v: "0.4.6", t: "Convites e roster de jogadores" },
+  { v: "0.4.5", t: "Aba Mapa (BlueMap embutido)" },
+  { v: "0.4.3", t: "Enviar skin do jogador" },
+  { v: "0.4.0", t: "Temas do painel e servidores em cartões" },
+];
+
+function Spark({ tone = "accent" }: { tone?: "accent" | "info" }) {
+  const color = tone === "info" ? "var(--info)" : "var(--accent)";
+  return (
+    <svg className="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points="0,23 20,19 40,24 60,13 80,17 100,9 120,14" fill="none" stroke={color} strokeWidth="2" />
+    </svg>
+  );
 }
 
 // ============================================================ Dashboard =====
@@ -745,13 +846,8 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
         <div className="card widget">
           <div className="wl"><Icon n="players" />Jogadores</div>
           <div className="wv tnum">{pcount ? pcount.online : "—"}<small> / {pcount ? pcount.max : "—"}</small></div>
-          <div className="hint" style={{ marginTop: 10 }}>{pcount ? "online agora" : info?.state === "running" ? "consultando…" : "servidor offline"}</div>
+          <Spark tone="accent" />
           <PlayerRoster players={pcount} />
-        </div>
-        <div className="card widget">
-          <div className="wl"><Icon n="ping" />Ping</div>
-          <div className="wv tnum">{info?.latency_ms != null ? info.latency_ms : "—"}<small> ms</small></div>
-          <div className="hint" style={{ marginTop: 10 }}>até o servidor</div>
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="cpu" />CPU · seu PC</div>
@@ -763,13 +859,36 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
           <div className="wv tnum">{stats ? (stats.mem_used / 1024 ** 3).toFixed(1) : "—"}<small> / {stats ? (stats.mem_total / 1024 ** 3).toFixed(0) : "—"} GB</small></div>
           <div className="mini-track"><i style={{ width: `${memPct}%` }} /></div>
         </div>
+        <div className="card widget">
+          <div className="wl"><Icon n="ping" />Ping</div>
+          <div className="wv tnum">{info?.latency_ms != null ? info.latency_ms : "—"}<small> ms</small></div>
+          <Spark tone="info" />
+        </div>
       </div>
 
-      <div className="maintenance-bar">
-        <div><h4>Prepare sua próxima sessão</h4><p>Confira os arquivos e mantenha seu jogo atualizado.</p></div>
-        <div className="row">
-        <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
-        <button className="btn" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
+      <div className="grid dash-cols">
+        <div className="card">
+          <div className="panel-h"><h4>Notícias &amp; eventos</h4><span className="eyebrow">do servidor</span></div>
+          <div className="feed-item">
+            <div className="feed-ic"><Icon n="server" /></div>
+            <div><h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5><p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}.` : "Consultando o servidor…"}</p></div>
+          </div>
+          <div className="feed-item">
+            <div className="feed-ic"><Icon n="refresh" /></div>
+            <div><h5>{plan?.synced ? "Tudo sincronizado" : "Sincronize para jogar"}</h5><p>{plan?.synced ? "Seu cliente está igual ao servidor." : "Há arquivos novos ou atualizados no servidor."}</p></div>
+          </div>
+          <div className="feed-actions">
+            <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
+            <button className="btn ghost" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
+          </div>
+        </div>
+        <div className="card">
+          <div className="panel-h"><h4>Changelog</h4><span className="eyebrow">launcher</span></div>
+          <div className="changelog">
+            {LAUNCHER_CHANGELOG.map((c) => (
+              <div className="cl-row" key={c.v}><span className="v">{c.v}</span><span>{c.t}</span></div>
+            ))}
+          </div>
         </div>
       </div>
 
