@@ -79,6 +79,7 @@ pub async fn modrinth_search(
     kind: String,
     query: String,
     game_version: Option<String>,
+    category: Option<String>,
 ) -> Result<Vec<ModItem>, String> {
     if folder_for(&kind).is_none() {
         return Err("tipo de conteúdo inválido".into());
@@ -88,6 +89,11 @@ pub async fn modrinth_search(
     let mut groups: Vec<String> = vec![format!("[\"project_type:{kind}\"]")];
     if let Some(v) = game_version.as_deref().filter(|s| !s.is_empty()) {
         groups.push(format!("[\"versions:{v}\"]"));
+    }
+    // Categoria é uma tag real do Modrinth (ex.: "realistic"); filtra de verdade,
+    // sem números inventados.
+    if let Some(c) = category.as_deref().filter(|s| !s.is_empty()) {
+        groups.push(format!("[\"categories:{c}\"]"));
     }
     let facets = format!("[{}]", groups.join(","));
 
@@ -142,11 +148,9 @@ pub async fn content_installed(kind: String, dir: String) -> Result<Vec<String>,
             return Ok(vec![]);
         }
         let mut out = Vec::new();
-        for entry in std::fs::read_dir(&target).map_err(|e| e.to_string())? {
-            if let Ok(e) = entry {
-                if e.path().is_file() {
-                    out.push(e.file_name().to_string_lossy().to_string());
-                }
+        for e in std::fs::read_dir(&target).map_err(|e| e.to_string())?.flatten() {
+            if e.path().is_file() {
+                out.push(e.file_name().to_string_lossy().to_string());
             }
         }
         out.sort();

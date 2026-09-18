@@ -309,11 +309,11 @@ pub(crate) const JAVA_MAJOR_DEFAULT: u8 = 17; // Minecraft 1.20.x
 #[tauri::command]
 async fn java_status(app: tauri::AppHandle) -> Result<Option<java::JavaInfo>, String> {
     let data = app_data(&app)?;
-    Ok(tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         java::managed_java(&data, JAVA_MAJOR_DEFAULT)
     })
     .await
-    .map_err(|e| e.to_string())?)
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -412,6 +412,8 @@ pub fn run() {
             install_java,
             play::play,
             files::fs_manifest,
+            files::server_mods,
+            files::local_worlds,
             files::fs_list,
             files::fs_read,
             files::fs_write,

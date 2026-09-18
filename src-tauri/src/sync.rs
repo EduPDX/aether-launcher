@@ -278,7 +278,37 @@ pub fn retire_files(target: &Path, rels: &[String]) -> std::io::Result<Vec<Strin
         std::fs::rename(&src, &dest)?;
         moved.push(rel.clone());
     }
+    // A lixeira do sync é só uma janela de "ops, reverte". Sem poda ela cresce
+    // para sempre: um slot por sync, invisível na UI (não tem meta.json), e
+    // já vimos 8 GB acumulados. Mantém só os slots mais recentes.
+    prune_trash(target, TRASH_KEEP);
     Ok(moved)
+}
+
+/// Quantos slots de lixeira do sync manter. Recuperação é de curtíssimo prazo;
+/// o resto é só disco desperdiçado.
+const TRASH_KEEP: usize = 3;
+
+/// Remove os slots de `.aether-trash` além dos `keep` mais recentes. Best-effort:
+/// falha em apagar um slot nunca derruba o sync.
+fn prune_trash(target: &Path, keep: usize) {
+    let base = target.join(".aether-trash");
+    let Ok(entries) = std::fs::read_dir(&base) else {
+        return;
+    };
+    let mut slots: Vec<(u64, PathBuf)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            let ts = path.file_name()?.to_str()?.parse::<u64>().ok()?;
+            path.is_dir().then_some((ts, path))
+        })
+        .collect();
+    // mais novo primeiro (timestamp Unix decrescente)
+    slots.sort_by_key(|s| std::cmp::Reverse(s.0));
+    for (_, path) in slots.into_iter().skip(keep) {
+        let _ = std::fs::remove_dir_all(&path);
+    }
 }
 
 #[cfg(test)]
@@ -376,6 +406,32 @@ mod tests {
         assert_eq!(moved.len(), 1);
         assert!(!tmp.join("mods/velho.jar").exists());
         assert!(build_plan(&sample_manifest(), &tmp, false).is_synced());
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn lixeira_do_sync_nao_cresce_para_sempre() {
+        // Regressão: cada sync criava um slot em .aether-trash e nada podava —
+        // chegou a 8 GB na máquina do dono. A poda mantém só os mais recentes.
+        let tmp = std::env::temp_dir().join(format!("aether-trash-{}", std::process::id()));
+        let base = tmp.join(".aether-trash");
+        for ts in [100u64, 200, 300, 400, 500, 600] {
+            let slot = base.join(ts.to_string());
+            std::fs::create_dir_all(&slot).unwrap();
+            std::fs::write(slot.join("velho.jar"), b"x").unwrap();
+        }
+        // uma pasta com nome não-numérico não deve ser tocada nem contada
+        std::fs::create_dir_all(base.join("nao-numerica")).unwrap();
+
+        prune_trash(&tmp, TRASH_KEEP);
+
+        for ts in [400u64, 500, 600] {
+            assert!(base.join(ts.to_string()).is_dir(), "manteve {ts}");
+        }
+        for ts in [100u64, 200, 300] {
+            assert!(!base.join(ts.to_string()).exists(), "podou {ts}");
+        }
+        assert!(base.join("nao-numerica").is_dir(), "ignora não-numérica");
         std::fs::remove_dir_all(&tmp).ok();
     }
 }

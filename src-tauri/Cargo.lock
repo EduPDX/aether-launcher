@@ -2051,8 +2051,9 @@ dependencies = [
 
 [[package]]
 name = "launcher"
-version = "0.4.7"
+version = "0.4.9"
 dependencies = [
+ "base64 0.22.1",
  "ed25519-dalek",
  "futures-util",
  "hex",

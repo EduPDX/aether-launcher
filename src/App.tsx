@@ -599,9 +599,9 @@ function Shell(props: {
           <div className="nav-group">
             <span className="eyebrow">Servidor</span>
             <NavItem icon="dashboard" label="Dashboard" on={section === "dashboard"} onClick={() => props.onSection("dashboard")} />
-            <NavItem icon="mods" label="Mods" soon on={section === "mods"} onClick={() => props.onSection("mods")} />
+            <NavItem icon="mods" label="Mods" on={section === "mods"} onClick={() => props.onSection("mods")} />
             <NavItem icon="content" label="Conteúdo" on={section === "content"} onClick={() => props.onSection("content")} />
-            <NavItem icon="worlds" label="Mundos" soon on={section === "worlds"} onClick={() => props.onSection("worlds")} />
+            <NavItem icon="worlds" label="Mundos" on={section === "worlds"} onClick={() => props.onSection("worlds")} />
             <NavItem icon="map" label="Mapa" on={section === "map"} onClick={() => props.onSection("map")} />
             <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
             <NavItem icon="console" label="Console" on={dockOpen && dockTab === "console"} onClick={() => openDock("console")} />
@@ -635,8 +635,8 @@ function Shell(props: {
           {section === "servers" && <ServersSection servers={props.servers} active={props.active} onSwitch={props.onSwitch} onAdd={props.onAdd} onEdit={props.onEdit} onRemove={props.onRemove} />}
           {section === "skin" && <SkinSection server={current} onPatch={props.onPatch} />}
           {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} iconPack={props.iconPack} onIconPack={props.onIconPack} />}
-          {section === "mods" && <SoonSection icon="mods" eyebrow="Servidor" title="Gerenciador de mods" description="Listar, ativar e desativar cada mod instalado — direto daqui, sem mexer em pastas. Está a caminho; por ora, use Conteúdo para descobrir mods e Arquivos para inspecionar a instalação." />}
-          {section === "worlds" && <SoonSection icon="worlds" eyebrow="Servidor" title="Mundos" description="Ver os mundos do servidor, tamanho e último backup. Em breve; o mapa ao vivo já está na aba Mapa." />}
+          {section === "mods" && <ModsSection server={current} />}
+          {section === "worlds" && <WorldsSection server={current} />}
           {section === "friends" && <SoonSection icon="friends" eyebrow="Você" title="Amigos" description="Ver quem está online e entrar junto com um clique. Em breve. Os jogadores online já aparecem no Dashboard." />}
           {section === "help" && <SoonSection icon="help" eyebrow="Ajuda" title="Central de ajuda" description="Guias de instalação, solução de problemas e como pedir um convite ao administrador. Em breve." />}
         </main>
@@ -787,6 +787,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.9", t: "Mods do servidor, Mundos locais em grade, Configurações e Conteúdo em dois painéis, jogadores online por nome e lixeira do sync que não cresce mais" },
   { v: "0.4.8", t: "Visual fiel ao protótipo: banner do servidor, sidebar completa, dock com abas e status bar" },
   { v: "0.4.7", t: "Redesign: onboarding, avatares, Ctrl+K e console dock" },
   { v: "0.4.6", t: "Convites e roster de jogadores" },
@@ -844,10 +845,9 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 
       <div className="grid widgets">
         <div className="card widget">
-          <div className="wl"><Icon n="players" />Jogadores</div>
+          <div className="wl"><Icon n="players" />Jogadores online</div>
           <div className="wv tnum">{pcount ? pcount.online : "—"}<small> / {pcount ? pcount.max : "—"}</small></div>
           <Spark tone="accent" />
-          <PlayerRoster players={pcount} />
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="cpu" />CPU · seu PC</div>
@@ -868,14 +868,19 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 
       <div className="grid dash-cols">
         <div className="card">
-          <div className="panel-h"><h4>Notícias &amp; eventos</h4><span className="eyebrow">do servidor</span></div>
+          <div className="panel-h"><h4>No servidor agora</h4><span className="eyebrow">{pcount ? `${pcount.online} de ${pcount.max}` : "—"}</span></div>
+          <div className="online-body">
+            {pcount && pcount.online > 0 ? (
+              pcount.names && pcount.names.length > 0
+                ? <PlayerRoster players={pcount} />
+                : <p className="online-hidden">{pcount.online} {pcount.online === 1 ? "jogador online" : "jogadores online"} — o servidor não divulga os nomes.</p>
+            ) : (
+              <div className="online-none"><Icon n="players" /><span>Ninguém online agora. Clique em <b>Jogar</b> e seja o primeiro.</span></div>
+            )}
+          </div>
           <div className="feed-item">
             <div className="feed-ic"><Icon n="server" /></div>
             <div><h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5><p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}.` : "Consultando o servidor…"}</p></div>
-          </div>
-          <div className="feed-item">
-            <div className="feed-ic"><Icon n="refresh" /></div>
-            <div><h5>{plan?.synced ? "Tudo sincronizado" : "Sincronize para jogar"}</h5><p>{plan?.synced ? "Seu cliente está igual ao servidor." : "Há arquivos novos ou atualizados no servidor."}</p></div>
           </div>
           <div className="feed-actions">
             <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
@@ -1344,66 +1349,109 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
   autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
 }) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
+  const [cat, setCat] = useState<SettingsCat>("aparencia");
+  const [nick, setNick] = useState(server.username);
+  useEffect(() => setNick(server.username), [server.username]);
 
   async function pickDir() {
     const chosen = await open({ directory: true, title: "Pasta do Minecraft (.minecraft)" });
     if (typeof chosen === "string") onPatch({ dir: chosen });
   }
 
+  const cats: { id: SettingsCat; label: string; icon: IconName }[] = [
+    { id: "aparencia", label: "Interface & Temas", icon: "content" },
+    { id: "jogo", label: "Jogo & Java", icon: "play" },
+    { id: "conta", label: "Conta", icon: "friends" },
+  ];
+
   return (
     <div className="page">
-      <SectionHeading title="Do seu jeito" description="Personalize o launcher e ajuste sua experiência no jogo. As alterações são salvas automaticamente." eyebrow="Configurações" />
+      <SectionHeading title="Configurações" description="Ajustes do launcher e do jogo. Tudo é salvo automaticamente." eyebrow="Você" />
 
-      <span className="eyebrow set-eyebrow">Aparência</span>
-      <div className="setting">
-        <label>Tema — os mesmos do painel do servidor</label>
-        <div className="theme-grid">
-          {Object.entries(THEMES).map(([id, t]) => (
-            <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label} onClick={() => onPreset(id)}>
-              <span className="tprev" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
-                <i className="tp-s" style={{ background: t.tokens.surface2 }} />
-                <i className="tp-d" style={{ background: t.tokens.accent }} />
-              </span>
-              <span className="tname">{t.label}</span>
+      <div className="set-split">
+        <nav className="set-nav">
+          {cats.map((c) => (
+            <button key={c.id} className={cat === c.id ? "on" : ""} aria-current={cat === c.id ? "page" : undefined} onClick={() => setCat(c.id)}>
+              <Icon n={c.icon} />{c.label}
             </button>
           ))}
-        </div>
-      </div>
+        </nav>
 
-      <div className="setting">
-        <label>Ícones de arquivo</label>
-        <div className="iconpack-grid">
-          {ICON_PACKS.map((p) => (
-            <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
-              <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <p className="hint">Muda como pastas e arquivos aparecem no gerenciador de arquivos.</p>
-      </div>
+        <div className="set-body">
+          {cat === "aparencia" && (
+            <>
+              <div className="setting">
+                <label>Tema — os mesmos do painel do servidor</label>
+                <div className="theme-grid">
+                  {Object.entries(THEMES).map(([id, t]) => (
+                    <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label} onClick={() => onPreset(id)}>
+                      <span className="tprev" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
+                        <i className="tp-s" style={{ background: t.tokens.surface2 }} />
+                        <i className="tp-d" style={{ background: t.tokens.accent }} />
+                      </span>
+                      <span className="tname">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-      <span className="eyebrow set-eyebrow">Jogo</span>
-      <div className="setting" style={{ paddingTop: 4, paddingBottom: 4 }}>
-        <div className="set-row">
-          <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
-          <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} role="switch" aria-checked={autojoin} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
-        </div>
-        <div className="set-row">
-          <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
-          <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
-            <input aria-label="Memória do jogo em GB" type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
-            <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
-          </div>
-        </div>
-        <div className="set-row">
-          <div className="txt"><h5>Pasta do jogo</h5><p>Onde os arquivos do jogo ficam neste computador.</p></div>
-          <div className="ctl row"><input type="text" style={{ width: 240 }} value={server.dir} readOnly /><button className="btn" onClick={pickDir}>Escolher…</button></div>
+              <div className="setting">
+                <label>Ícones de arquivo</label>
+                <div className="iconpack-grid">
+                  {ICON_PACKS.map((p) => (
+                    <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
+                      <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="hint">Muda como pastas e arquivos aparecem no gerenciador de arquivos.</p>
+              </div>
+            </>
+          )}
+
+          {cat === "jogo" && (
+            <div className="setting" style={{ paddingTop: 0 }}>
+              <div className="set-row">
+                <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
+                <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} role="switch" aria-checked={autojoin} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
+              </div>
+              <div className="set-row">
+                <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
+                <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
+                  <input aria-label="Memória do jogo em GB" type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
+                  <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="txt"><h5>Pasta do jogo</h5><p>Onde os arquivos do jogo ficam neste computador. O Java certo é instalado automaticamente.</p></div>
+                <div className="ctl row"><input type="text" style={{ width: 240 }} value={server.dir} readOnly /><button className="btn" onClick={pickDir}>Escolher…</button></div>
+              </div>
+            </div>
+          )}
+
+          {cat === "conta" && (
+            <div className="setting" style={{ paddingTop: 0 }}>
+              <div className="set-row">
+                <div className="txt"><h5>Nome do jogador</h5><p>Igual à whitelist (maiúsculas contam, modo offline). É por este nome que a skin é encontrada.</p></div>
+                <div className="ctl row">
+                  <input type="text" style={{ width: 200 }} value={nick} maxLength={16} onChange={(e) => setNick(e.target.value)} />
+                  <button className="btn" disabled={!/^[A-Za-z0-9_]{3,16}$/.test(nick.trim()) || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar</button>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="txt"><h5>Modo de login</h5><p>Hoje o launcher entra em modo offline — serve a servidores com <code>online-mode=false</code>. Login Microsoft está no roteiro.</p></div>
+                <div className="ctl"><span className="pill mute">offline</span></div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+type SettingsCat = "aparencia" | "jogo" | "conta";
 
 // ================================================================ Skin ======
 function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial<Server>) => void }) {
@@ -1516,17 +1564,115 @@ function loadInstalled(dir: string, kind: string): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(installedKey(dir, kind)) ?? "{}"); } catch { return {}; }
 }
 
+// =============================================================== Mods =======
+interface ServerModRow { path: string; name: string; size: number; action: string; present: boolean }
+
+/** Cor estável a partir do nome, só para o quadradinho do mod ter identidade. */
+function modHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return h;
+}
+
+function ModsSection({ server }: { server: Server }) {
+  const [mods, setMods] = useState<ServerModRow[] | null>(null);
+  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setMods(null);
+    setError("");
+    invoke<ServerModRow[]>("server_mods", { server: server.server, profileId: server.profileId, dir: server.dir })
+      .then((m) => { if (alive) setMods(m); })
+      .catch((e) => { if (alive) setError(String(e)); });
+    return () => { alive = false; };
+  }, [server.server, server.profileId, server.dir]);
+
+  const term = q.trim().toLowerCase();
+  const list = (mods ?? []).filter((m) => m.name.toLowerCase().includes(term));
+  const totalSize = (mods ?? []).reduce((s, m) => s + m.size, 0);
+
+  return (
+    <div className="page">
+      <SectionHeading eyebrow="Servidor" title="Mods"
+        description={mods ? `${mods.length} mods sincronizados do servidor · ${formatBytes(totalSize)}` : "Os mods que este servidor entrega para o seu jogo."} />
+
+      <div className="searchbar mods-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar mods pelo nome…" aria-label="Filtrar mods" />
+        {mods && <span className="sb-count">{list.length} de {mods.length}</span>}
+      </div>
+
+      {error && <div className="error">Não consegui listar os mods: {error}. Verifique a conexão com o servidor.</div>}
+      {!mods && !error && <div className="mods-loading">Consultando o servidor…</div>}
+      {mods && list.length === 0 && !error && (
+        <EmptyState icon="mods" title={term ? "Nada encontrado" : "Nenhum mod"} description={term ? "Nenhum mod bate com esse filtro." : "Este servidor não sincroniza mods."} />
+      )}
+
+      {mods && list.length > 0 && (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>Tipo</th><th>Tamanho</th><th>Estado</th></tr></thead>
+            <tbody>
+              {list.map((m) => (
+                <tr key={m.path}>
+                  <td>
+                    <div className="mname">
+                      <span className="mi" style={{ background: `linear-gradient(135deg, hsl(${modHue(m.name)} 58% 46%), hsl(${(modHue(m.name) + 40) % 360} 58% 32%))` }}>{m.name.charAt(0).toUpperCase()}</span>
+                      <b>{m.name.replace(/\.jar$/i, "")}</b>
+                    </div>
+                  </td>
+                  <td>{m.action === "optional" ? <span className="pill info">opcional</span> : <span className="pill lock"><Icon n="lock" />obrigatório</span>}</td>
+                  <td className="tnum">{formatBytes(m.size)}</td>
+                  <td>{m.present ? <span className="pill ok">baixado</span> : <span className="pill mute">pendente</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="ctxhint">
+        <Icon n="lock" />
+        <span>Os mods vêm da <b>sincronização do servidor</b> e não são editáveis aqui — se você apagar algum, o próximo sync o traz de volta. Para adicionar shaders e texturas do seu lado, use <b>Conteúdo</b>.</span>
+      </div>
+    </div>
+  );
+}
+
+// Tags reais do Modrinth por tipo — filtram de verdade (sem contadores falsos).
+const CONTENT_CATEGORIES: Record<ContentKind, { id: string; label: string }[]> = {
+  shader: [
+    { id: "realistic", label: "Realista" },
+    { id: "fantasy", label: "Fantasia" },
+    { id: "vanilla-like", label: "Vanilla+" },
+    { id: "cartoon", label: "Cartoon" },
+    { id: "performance", label: "Performance" },
+  ],
+  resourcepack: [
+    { id: "realistic", label: "Realista" },
+    { id: "simplistic", label: "Simples" },
+    { id: "themed", label: "Temático" },
+    { id: "modded", label: "Modded" },
+    { id: "vanilla-like", label: "Vanilla+" },
+  ],
+};
+
 function ContentSection({ server }: { server: Server }) {
   const [kind, setKind] = useState<ContentKind>("shader");
   const [query, setQuery] = useState("");
   const [gameVersion, setGameVersion] = useState<string | null>(null);
   const [useCompat, setUseCompat] = useState(true);
+  const [category, setCategory] = useState<string | null>(null);
   const [results, setResults] = useState<ModItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [installed, setInstalled] = useState<Record<string, string>>(() => loadInstalled(server.dir, "shader"));
   const [installing, setInstalling] = useState<string | null>(null);
   const [progress, setProgress] = useState<ContentProgress | null>(null);
+
+  function switchKind(k: ContentKind) { setKind(k); setCategory(null); }
 
   useEffect(() => {
     invoke<{ minecraft: string | null }>("content_context", { server: server.server, profileId: server.profileId })
@@ -1544,13 +1690,13 @@ function ContentSection({ server }: { server: Server }) {
   async function doSearch() {
     setLoading(true); setError("");
     try {
-      const rows = await invoke<ModItem[]>("modrinth_search", { kind, query, gameVersion: useCompat ? gameVersion : null });
+      const rows = await invoke<ModItem[]>("modrinth_search", { kind, query, gameVersion: useCompat ? gameVersion : null, category });
       setResults(rows);
     } catch (e) { setError(String(e)); } finally { setLoading(false); }
   }
 
-  // Busca quando troca de aba, alterna compatibilidade ou a versão do servidor carrega.
-  useEffect(() => { doSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [kind, useCompat, gameVersion]);
+  // Busca quando troca de aba, categoria, compatibilidade ou a versão carrega.
+  useEffect(() => { doSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [kind, useCompat, gameVersion, category]);
 
   async function install(item: ModItem) {
     setInstalling(item.project_id); setError(""); setProgress(null);
@@ -1580,41 +1726,57 @@ function ContentSection({ server }: { server: Server }) {
       <SectionHeading title="Um novo olhar para seu mundo" description="Descubra shaders e texturas do Modrinth para personalizar seu jogo." eyebrow="Conteúdo" />
 
       <div className="content-tabs">
-        <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => setKind("shader")}>
+        <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => switchKind("shader")}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></svg>Shaders
         </button>
-        <button className={`content-tab ${!isShader ? "on" : ""}`} onClick={() => setKind("resourcepack")}>
+        <button className={`content-tab ${!isShader ? "on" : ""}`} onClick={() => switchKind("resourcepack")}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18" /></svg>Texturas
         </button>
       </div>
 
-      <div className="c-bar">
-        <div className="c-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-          <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
-        </div>
-        {gameVersion && (
-          <label className="c-compat"><input type="checkbox" checked={useCompat} onChange={(e) => setUseCompat(e.target.checked)} />só compatível com {gameVersion}</label>
-        )}
-        <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
-      </div>
+      <div className="content-split">
+        <aside className="filters">
+          {gameVersion && (
+            <div className="fgroup">
+              <span className="eyebrow">Compatível com</span>
+              <button className={`facet ${useCompat ? "on" : ""}`} onClick={() => setUseCompat(true)}><span className="fdot" />{gameVersion} (servidor)</button>
+              <button className={`facet ${!useCompat ? "on" : ""}`} onClick={() => setUseCompat(false)}><span className="fdot" />Todas as versões</button>
+            </div>
+          )}
+          <div className="fgroup">
+            <span className="eyebrow">Categoria</span>
+            <button className={`facet ${category === null ? "on" : ""}`} onClick={() => setCategory(null)}><span className="fdot" />Todas</button>
+            {CONTENT_CATEGORIES[kind].map((c) => (
+              <button key={c.id} className={`facet ${category === c.id ? "on" : ""}`} onClick={() => setCategory(c.id)}><span className="fdot" />{c.label}</button>
+            ))}
+          </div>
+        </aside>
 
-      {error && <p className="error">{error}</p>}
+        <div className="content-main">
+          <div className="c-bar">
+            <div className="c-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+              <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
+            </div>
+            <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
+          </div>
 
-      {installing && (
-        <div className="c-progress">
-          <div className="cp-head"><span className="cp-name">Instalando {progress?.name ?? "…"}</span>{pct !== null && <span className="cp-pct">{pct}%</span>}</div>
-          <div className="progress-track"><div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
-        </div>
-      )}
+          {error && <p className="error">{error}</p>}
 
-      {loading && results.length === 0 ? (
-        <div className="content-skeleton" role="status" aria-label="Buscando conteúdo">{[0, 1, 2, 3].map((i) => <div key={i}><i /><span /><span /></div>)}</div>
-      ) : results.length === 0 ? (
-        <EmptyState icon="content" title="Nenhum resultado por aqui" description={`Tente outro nome ou ajuste o filtro de compatibilidade${useCompat && gameVersion ? ` com ${gameVersion}` : ""}.`} />
-      ) : (
-        <div className="mod-grid">
-          {results.map((item) => {
+          {installing && (
+            <div className="c-progress">
+              <div className="cp-head"><span className="cp-name">Instalando {progress?.name ?? "…"}</span>{pct !== null && <span className="cp-pct">{pct}%</span>}</div>
+              <div className="progress-track"><div className={`progress-fill ${pct === null ? "indeterminate" : ""}`} style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
+            </div>
+          )}
+
+          {loading && results.length === 0 ? (
+            <div className="content-skeleton" role="status" aria-label="Buscando conteúdo">{[0, 1, 2, 3].map((i) => <div key={i}><i /><span /><span /></div>)}</div>
+          ) : results.length === 0 ? (
+            <EmptyState icon="content" title="Nenhum resultado por aqui" description={`Tente outro nome ou ajuste os filtros${useCompat && gameVersion ? ` (compatível com ${gameVersion})` : ""}.`} />
+          ) : (
+            <div className="mod-grid">
+              {results.map((item) => {
             const isInstalled = !!installed[item.project_id];
             const busyThis = installing === item.project_id;
             return (
@@ -1641,10 +1803,78 @@ function ContentSection({ server }: { server: Server }) {
               </div>
             );
           })}
+            </div>
+          )}
+
+          <p className="hint" style={{ marginTop: 14 }}>Instala em <b>{isShader ? "shaderpacks/" : "resourcepacks/"}</b>. No jogo, ative em Opções ▸ {isShader ? "Shaders (precisa do Iris/OptiFine)" : "Pacotes de Recursos"}.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================== Mundos ======
+interface WorldRow { folder: string; name: string; icon: string | null; last_played: number }
+
+/** Tempo relativo curto em pt-BR, a partir de um timestamp Unix em segundos. */
+function relTime(secs: number): string {
+  if (!secs) return "";
+  const diff = Date.now() / 1000 - secs;
+  if (diff < 3600) return "há pouco";
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+  const days = Math.floor(diff / 86400);
+  if (days === 1) return "ontem";
+  if (days < 30) return `há ${days} dias`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `há ${months} ${months === 1 ? "mês" : "meses"}`;
+  const years = Math.floor(months / 12);
+  return `há ${years} ${years === 1 ? "ano" : "anos"}`;
+}
+
+function WorldsSection({ server }: { server: Server }) {
+  const [worlds, setWorlds] = useState<WorldRow[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setWorlds(null);
+    setError("");
+    invoke<WorldRow[]>("local_worlds", { dir: server.dir })
+      .then((w) => { if (alive) setWorlds(w); })
+      .catch((e) => { if (alive) setError(String(e)); });
+    return () => { alive = false; };
+  }, [server.dir]);
+
+  return (
+    <div className="page">
+      <SectionHeading eyebrow="Você" title="Mundos"
+        description={worlds ? `${worlds.length} ${worlds.length === 1 ? "mundo" : "mundos"} neste computador` : "Seus mundos salvos neste computador."} />
+
+      {error && <div className="error">Não consegui ler seus mundos: {error}</div>}
+      {!worlds && !error && <div className="mods-loading">Procurando mundos…</div>}
+      {worlds && worlds.length === 0 && !error && (
+        <EmptyState icon="worlds" title="Nenhum mundo ainda" description="Quando você criar ou entrar em um mundo, ele aparece aqui. Os mundos ficam em saves/, dentro da pasta do jogo." />
+      )}
+      {worlds && worlds.length > 0 && (
+        <div className="world-grid">
+          {worlds.map((w) => (
+            <div key={w.folder} className="world-card" title={w.folder}>
+              <div className="world-cover">
+                {w.icon ? <img src={w.icon} alt="" /> : <div className="world-cover-empty"><Icon n="worlds" /></div>}
+              </div>
+              <div className="world-meta">
+                <div className="world-name" title={w.name}>{w.name}</div>
+                {w.last_played > 0 && <div className="world-when">{relTime(w.last_played)}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      <p className="hint" style={{ marginTop: 14 }}>Instala em <b>{isShader ? "shaderpacks/" : "resourcepacks/"}</b>. No jogo, ative em Opções ▸ {isShader ? "Shaders (precisa do Iris/OptiFine)" : "Pacotes de Recursos"}.</p>
+      <div className="ctxhint">
+        <Icon n="worlds" />
+        <span>Estes são seus mundos <b>single-player</b> locais (pasta <code>saves/</code>) — a capa é o próprio ícone que o Minecraft gera. O mundo do servidor fica na aba <b>Mapa</b>.</span>
+      </div>
     </div>
   );
 }

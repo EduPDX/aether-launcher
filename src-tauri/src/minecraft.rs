@@ -211,8 +211,8 @@ pub fn resolve_arguments(list: Option<&Value>, vars: &HashMap<&str, String>) -> 
     for item in list.and_then(|l| l.as_array()).into_iter().flatten() {
         match item {
             Value::String(s) => out.push(substitute(s, vars)),
-            Value::Object(rule_arg) => {
-                if rules_allow(rule_arg.get("rules")) {
+            Value::Object(rule_arg)
+                if rules_allow(rule_arg.get("rules")) => {
                     match rule_arg.get("value") {
                         Some(Value::String(s)) => out.push(substitute(s, vars)),
                         Some(Value::Array(items)) => {
@@ -223,7 +223,6 @@ pub fn resolve_arguments(list: Option<&Value>, vars: &HashMap<&str, String>) -> 
                         _ => {}
                     }
                 }
-            }
             _ => {}
         }
     }

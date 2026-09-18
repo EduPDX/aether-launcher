@@ -75,7 +75,7 @@ async fn ensure_vanilla(
         while let Some(result) = stream.next().await {
             result.map_err(|e| e.to_string())?;
             done += 1;
-            if done % 10 == 0 || done == total {
+            if done.is_multiple_of(10) || done == total {
                 emit(app, "libraries", "bibliotecas", done, total);
             }
         }
@@ -120,7 +120,7 @@ async fn ensure_vanilla(
         while let Some(result) = stream.next().await {
             result.map_err(|e| e.to_string())?;
             done += 1;
-            if done % 100 == 0 || done == total {
+            if done.is_multiple_of(100) || done == total {
                 emit(app, "assets", "assets do jogo", done, total);
             }
         }

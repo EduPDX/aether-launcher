@@ -100,6 +100,104 @@ pub async fn fs_manifest(server: String, profile_id: String) -> Result<ManifestP
     })
 }
 
+#[derive(Serialize, Clone)]
+pub struct ServerMod {
+    /// Caminho no manifesto, ex.: "mods/create-1.20.1.jar".
+    path: String,
+    /// Só o nome do arquivo, para exibir.
+    name: String,
+    size: u64,
+    /// "require" (sempre baixado) ou "optional" (o jogador escolhe).
+    action: String,
+    /// Já está baixado neste PC?
+    present: bool,
+}
+
+/// Lista os mods que o servidor entrega (do manifesto assinado), com tamanho,
+/// se são obrigatórios ou opcionais, e se já estão neste PC. Só leitura: o
+/// servidor é a fonte da verdade e o sync repõe o que o jogador apagar — por
+/// isso não há liga/desliga aqui, seria uma promessa que o sync desfaz.
+#[tauri::command]
+pub async fn server_mods(
+    server: String,
+    profile_id: String,
+    dir: String,
+) -> Result<Vec<ServerMod>, String> {
+    let http = client();
+    let (_, manifest) = fetch_manifest(&http, &server, &profile_id).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let base = PathBuf::from(&dir);
+        let mut mods: Vec<ServerMod> = manifest
+            .files
+            .iter()
+            .filter(|f| {
+                let p = f.path.to_lowercase();
+                p.starts_with("mods/") && p.ends_with(".jar")
+            })
+            .map(|f| ServerMod {
+                name: f.path.rsplit('/').next().unwrap_or(&f.path).to_string(),
+                present: base.join(&f.path).exists(),
+                path: f.path.clone(),
+                size: f.size,
+                action: f.action.clone(),
+            })
+            .collect();
+        mods.sort_by_key(|a| a.name.to_lowercase());
+        mods
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Clone)]
+pub struct WorldEntry {
+    /// Nome da pasta em saves/ (que o Minecraft nomeia pelo mundo).
+    folder: String,
+    name: String,
+    /// icon.png embutido como data URI, ou None se o mundo não tem capa.
+    icon: Option<String>,
+    /// Última vez jogado (mtime do level.dat, em segundos Unix) — para ordenar.
+    last_played: u64,
+}
+
+/// Lista os mundos locais do jogador (a pasta `saves/`). Puramente local. A capa
+/// é o `icon.png` que o próprio Minecraft gera; embutimos como data URI porque é
+/// pequeno e evita expor a pasta do jogo por um protocolo de assets.
+#[tauri::command]
+pub async fn local_worlds(dir: String) -> Result<Vec<WorldEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let saves = PathBuf::from(&dir).join("saves");
+        let mut worlds: Vec<WorldEntry> = Vec::new();
+        let Ok(entries) = std::fs::read_dir(&saves) else {
+            return worlds; // sem saves/ ainda: lista vazia, não é erro
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            // Um mundo de verdade tem level.dat; ignora lixo solto em saves/.
+            if !path.is_dir() || !path.join("level.dat").exists() {
+                continue;
+            }
+            let folder = entry.file_name().to_string_lossy().to_string();
+            let last_played = std::fs::metadata(path.join("level.dat"))
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let icon = std::fs::read(path.join("icon.png")).ok().map(|bytes| {
+                use base64::Engine;
+                format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
+            });
+            worlds.push(WorldEntry { name: folder.clone(), folder, icon, last_played });
+        }
+        // Mais recente primeiro.
+        worlds.sort_by_key(|w| std::cmp::Reverse(w.last_played));
+        worlds
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Lista uma pasta (relativa à pasta do jogo). Operação puramente local — sem
 /// rede — porque a navegação é frequente.
 #[tauri::command]
@@ -303,7 +401,7 @@ pub async fn fs_trash_list(dir: String) -> Result<Vec<TrashItem>, String> {
                 out.push(TrashItem { id, rel: m.rel, name: m.name, is_dir: m.is_dir, ts: m.ts });
             }
         }
-        out.sort_by(|a, b| b.ts.cmp(&a.ts));
+        out.sort_by_key(|i| std::cmp::Reverse(i.ts));
         Ok(out)
     })
     .await

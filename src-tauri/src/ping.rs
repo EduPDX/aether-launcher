@@ -143,11 +143,11 @@ async fn do_ping(host: String, port: u16) -> Result<ServerPing, String> {
     let mut ping = Vec::new();
     write_varint(&mut ping, 0x01);
     ping.extend_from_slice(&0x1234_5678i64.to_be_bytes());
-    let latency_ms = if stream.write_all(&framed(ping)).await.is_ok() && read_pong(&mut stream).await.is_ok() {
-        start.elapsed().as_millis() as u64
-    } else {
-        start.elapsed().as_millis() as u64
-    };
+    // Tenta o round-trip; a latência é o tempo decorrido, tenha o pong chegado
+    // ou não (um servidor pode fechar antes de responder ao ping).
+    let _ = stream.write_all(&framed(ping)).await;
+    let _ = read_pong(&mut stream).await;
+    let latency_ms = start.elapsed().as_millis() as u64;
 
     Ok(ServerPing { online, max, latency_ms, motd })
 }
