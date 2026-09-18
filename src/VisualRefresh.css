@@ -215,7 +215,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .skin-preview { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px; gap: 18px; }
 .identity-caption { text-align: center; }
 .identity-caption h3 { font-size: 22px; margin-top: 5px; overflow-wrap: anywhere; }
-.skin-stage { min-height: 270px; border: 0; background: radial-gradient(ellipse at center, var(--accent-soft), transparent 75%), var(--surface-2); }
+.skin-stage { min-height: 0; height: clamp(260px, 42vh, 360px); padding: 0; overflow: hidden; border: 0; background: radial-gradient(ellipse at center, var(--accent-soft), transparent 75%), var(--surface-2); }
+.skin-stage .skin-canvas { display: block; }
 .skin-controls .soon { font-size: 12px; line-height: 1.8; border-style: solid; color: var(--text-dim); }
 .soon { line-height: 1.7; }
 .map-page .section-heading h2 { font-size: 24px; }
@@ -392,3 +393,38 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .skin-canvas { display: block; cursor: grab; touch-action: none; }
 .skin-canvas:active { cursor: grabbing; }
 .skin-loading { color: var(--text-mute); font-size: 13px; }
+
+.content-more { display: flex; justify-content: center; margin-top: 20px; }
+.content-more .btn { padding: 10px 28px; }
+
+/* ===== Temas — prévia ao vivo (mini-app) + cards maiores ===== */
+.theme-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+.tcard { padding: 8px; gap: 8px; }
+.theme-live { display: flex; align-items: center; gap: 18px; padding: 16px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.theme-live .tmini { width: 300px; max-width: 56%; }
+.theme-live-cap b { font-size: 16px; display: block; margin-bottom: 2px; }
+.theme-live-cap span { font-size: 12px; color: var(--text-mute); }
+.tmini { width: 100%; aspect-ratio: 16 / 10.5; border-radius: 8px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(128,128,128,.18); display: flex; flex-direction: column; pointer-events: none; }
+.tmini-tb { height: 22%; display: flex; align-items: center; gap: 5px; padding: 0 6px; }
+.tmini-gem { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.tmini-pill { width: 42%; height: 6px; border-radius: 100px; }
+.tmini-b { flex: 1; display: flex; min-height: 0; }
+.tmini-side { width: 26%; display: flex; flex-direction: column; gap: 4px; padding: 5px 4px; }
+.tmini-nav { height: 9px; border-radius: 3px; display: flex; align-items: center; padding: 0 3px; }
+.tmini-nav i { width: 60%; height: 3px; border-radius: 2px; display: block; }
+.tmini-main { flex: 1; padding: 5px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.tmini-banner { height: 42%; border-radius: 5px; }
+.tmini-cards { flex: 1; display: flex; gap: 5px; }
+.tmini-card { flex: 1; border: 1px solid; border-radius: 5px; display: flex; align-items: flex-end; padding: 4px; }
+.tmini-card i { width: 40%; height: 5px; border-radius: 2px; display: block; }
+
+/* ===== Console — tela própria (antes era o dock inferior) ===== */
+.console-tabs { align-items: center; }
+.console-tabs .console-copy { margin-left: auto; }
+.tab-badge { margin-left: 6px; font-size: 10px; font-weight: 700; background: var(--danger); color: #fff; border-radius: 100px; padding: 0 6px; }
+.console-page { height: calc(100vh - 290px); min-height: 240px; overflow-y: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.7; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.console-page .ln { display: flex; gap: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.console-page .ln .msg { color: var(--text-dim); }
+.console-page .ln.dim .msg { color: var(--text-mute); }
+.console-page .ln .lv { flex-shrink: 0; font-weight: 700; }
+.console-page .ln .lv.warn { color: var(--warn); }

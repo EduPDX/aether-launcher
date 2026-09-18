@@ -281,6 +281,15 @@ button.crumb:hover { background: var(--surface-3); color: var(--text); }
 :root[data-iconpack="solido"] .file-ico svg, .ipk[data-iconpack="solido"] .file-ico svg { width: 14px; height: 14px; }
 :root[data-iconpack="solido"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-4); }
 :root[data-iconpack="solido"] .gi.dir { background: var(--accent-2); color: var(--accent-ink); }
+/* colorido — cores por tipo, tipo VS Code (pasta âmbar, arquivo azul) */
+:root[data-iconpack="colorido"] .file-ico.dir, :root[data-iconpack="colorido"] .gi.dir, .ipk[data-iconpack="colorido"] .file-ico.dir { color: #e0a54b; }
+:root[data-iconpack="colorido"] .file-ico:not(.dir), :root[data-iconpack="colorido"] .gi:not(.dir), .ipk[data-iconpack="colorido"] .file-ico:not(.dir) { color: #4aa5f0; }
+/* minimalista — traços finos e discretos */
+:root[data-iconpack="minimalista"] .file-ico svg, :root[data-iconpack="minimalista"] .gi svg, .ipk[data-iconpack="minimalista"] .file-ico svg { stroke-width: 1.25; }
+:root[data-iconpack="minimalista"] .file-ico, :root[data-iconpack="minimalista"] .file-ico.dir, :root[data-iconpack="minimalista"] .gi, :root[data-iconpack="minimalista"] .gi.dir, .ipk[data-iconpack="minimalista"] .file-ico, .ipk[data-iconpack="minimalista"] .file-ico.dir { color: var(--text-mute); }
+/* windows — pasta amarela clássica, arquivo azul claro */
+:root[data-iconpack="windows"] .file-ico.dir, :root[data-iconpack="windows"] .gi.dir, .ipk[data-iconpack="windows"] .file-ico.dir { color: #f2c14e; }
+:root[data-iconpack="windows"] .file-ico:not(.dir), :root[data-iconpack="windows"] .gi:not(.dir), .ipk[data-iconpack="windows"] .file-ico:not(.dir) { color: #7fb1e6; }
 /* contraste — pastilha preenchida no acento */
 :root[data-iconpack="contraste"] .file-ico, .ipk[data-iconpack="contraste"] .file-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-3); color: var(--text); }
 :root[data-iconpack="contraste"] .file-ico.dir, .ipk[data-iconpack="contraste"] .file-ico.dir { background: var(--accent); color: var(--accent-ink); }

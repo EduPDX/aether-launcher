@@ -80,11 +80,13 @@ pub async fn modrinth_search(
     query: String,
     game_version: Option<String>,
     category: Option<String>,
+    offset: Option<u32>,
 ) -> Result<Vec<ModItem>, String> {
     if folder_for(&kind).is_none() {
         return Err("tipo de conteúdo inválido".into());
     }
     let http = client();
+    let offset = offset.unwrap_or(0).to_string();
 
     let mut groups: Vec<String> = vec![format!("[\"project_type:{kind}\"]")];
     if let Some(v) = game_version.as_deref().filter(|s| !s.is_empty()) {
@@ -103,6 +105,7 @@ pub async fn modrinth_search(
             ("query", query.as_str()),
             ("facets", facets.as_str()),
             ("limit", "24"),
+            ("offset", offset.as_str()),
             ("index", "relevance"),
         ])
         .send()

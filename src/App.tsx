@@ -155,6 +155,11 @@ const THEMES: Record<string, Theme> = {
   papel: { label: "Papel (claro)", dark: false, tokens: { bg: "#faf7f0", surface: "#ffffff", surface2: "#f3ede1", surface3: "#e8dfcc", border: "#d9ccb2", text: "#2d2a24", muted: "#6f6754", accent: "#a16207", accentDim: "#854d0e", danger: "#b91c1c", warn: "#c2410c", info: "#1d4ed8" } },
   lavanda: { label: "Lavanda (claro)", dark: false, tokens: { bg: "#f6f4ff", surface: "#ffffff", surface2: "#efeaff", surface3: "#e0d7fb", border: "#cfc2f5", text: "#2e1065", muted: "#6d5ba3", accent: "#7c3aed", accentDim: "#6d28d9", danger: "#dc2626", warn: "#d97706", info: "#2563eb" } },
   geada: { label: "Geada (claro)", dark: false, tokens: { bg: "#f2f8fb", surface: "#ffffff", surface2: "#e8f2f8", surface3: "#d5e7f0", border: "#bcd8e6", text: "#0d2b3a", muted: "#4a7186", accent: "#0891b2", accentDim: "#0e7490", danger: "#dc2626", warn: "#b45309", info: "#2563eb" } },
+  ambar: { label: "Âmbar", dark: true, tokens: { bg: "#191204", surface: "#271b08", surface2: "#33240c", surface3: "#443110", border: "#5a4116", text: "#fef3c7", muted: "#c4a56a", accent: "#f59e0b", accentDim: "#d97706", danger: "#ef4444", warn: "#fde047", info: "#38bdf8" } },
+  indigo: { label: "Índigo", dark: true, tokens: { bg: "#0d0f2b", surface: "#171a45", surface2: "#1f2356", surface3: "#2a2f6e", border: "#373d85", text: "#e0e7ff", muted: "#9aa2d4", accent: "#818cf8", accentDim: "#6366f1", danger: "#fb7185", warn: "#fbbf24", info: "#38bdf8" } },
+  carbono: { label: "Carbono", dark: true, tokens: { bg: "#050507", surface: "#0e0e12", surface2: "#16161c", surface3: "#202028", border: "#2c2c36", text: "#e8e8ef", muted: "#9a9aa8", accent: "#38bdf8", accentDim: "#0ea5e9", danger: "#f87171", warn: "#fbbf24", info: "#818cf8" } },
+  rose: { label: "Rosé (claro)", dark: false, tokens: { bg: "#fff1f2", surface: "#ffffff", surface2: "#ffe4e6", surface3: "#fecdd3", border: "#fda4af", text: "#4c0519", muted: "#9f5a6a", accent: "#e11d48", accentDim: "#be123c", danger: "#dc2626", warn: "#b45309", info: "#2563eb" } },
+  menta: { label: "Menta (claro)", dark: false, tokens: { bg: "#f0fdf4", surface: "#ffffff", surface2: "#dcfce7", surface3: "#bbf7d0", border: "#86efac", text: "#052e16", muted: "#4d7c5a", accent: "#059669", accentDim: "#047857", danger: "#dc2626", warn: "#b45309", info: "#2563eb" } },
 };
 
 const THEME_KEY = "aether.launcher.theme";
@@ -426,7 +431,7 @@ function usePlayEngine(server: Server) {
 }
 
 type Engine = ReturnType<typeof usePlayEngine>;
-type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "mods" | "worlds" | "friends" | "help" | "downloads";
+type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "mods" | "worlds" | "friends" | "help" | "downloads" | "console";
 
 // Lazy: chamar getCurrentWindow() só na ação evita quebrar fora do Tauri.
 const win = {
@@ -536,9 +541,6 @@ function Shell(props: {
   const engine = usePlayEngine(current);
   const online = engine.info?.state === "running";
   const [palette, setPalette] = useState(false);
-  const [dockOpen, setDockOpen] = useState(false);
-  const [dockTab, setDockTab] = useState<DockTab>("console");
-  const openDock = (t: DockTab) => { setDockTab(t); setDockOpen(true); };
   const dlCount = engine.activity ? 1 : 0;
   const problems = engine.error ? 1 : 0;
   useEffect(() => {
@@ -581,7 +583,7 @@ function Shell(props: {
           <button className="icon-btn" onClick={() => props.onSection("downloads")} title="Downloads">
             <Icon n="download" />
           </button>
-          <button className="icon-btn" onClick={() => openDock("problemas")} title="Notificações">
+          <button className="icon-btn" onClick={() => props.onSection("console")} title="Notificações">
             {problems > 0 && <span className="dot-badge" />}
             <Icon n="bell" />
           </button>
@@ -605,7 +607,7 @@ function Shell(props: {
             <NavItem icon="worlds" label="Mundos" on={section === "worlds"} onClick={() => props.onSection("worlds")} />
             <NavItem icon="map" label="Mapa" on={section === "map"} onClick={() => props.onSection("map")} />
             <NavItem icon="files" label="Arquivos" on={section === "files"} onClick={() => props.onSection("files")} />
-            <NavItem icon="console" label="Console" on={dockOpen && dockTab === "console"} onClick={() => openDock("console")} />
+            <NavItem icon="console" label="Console" on={section === "console"} onClick={() => props.onSection("console")} />
           </div>
           <div className="nav-group">
             <span className="eyebrow">Você</span>
@@ -639,12 +641,11 @@ function Shell(props: {
           {section === "mods" && <ModsSection server={current} />}
           {section === "worlds" && <WorldsSection server={current} />}
           {section === "downloads" && <DownloadsSection engine={engine} />}
+          {section === "console" && <ConsoleSection engine={engine} />}
           {section === "friends" && <SoonSection icon="friends" eyebrow="Você" title="Amigos" description="Ver quem está online e entrar junto com um clique. Em breve. Os jogadores online já aparecem no Dashboard." />}
           {section === "help" && <SoonSection icon="help" eyebrow="Ajuda" title="Central de ajuda" description="Guias de instalação, solução de problemas e como pedir um convite ao administrador. Em breve." />}
         </main>
       </div>
-
-      <ConsoleDock engine={engine} open={dockOpen} tab={dockTab} onTab={setDockTab} onToggle={() => setDockOpen((v) => !v)} />
 
       {/* status bar */}
       <div className="statusbar">
@@ -671,8 +672,6 @@ function NavItem({ icon, label, on, soon, count, hot, onClick }: { icon: IconNam
     </button>
   );
 }
-
-type DockTab = "console" | "downloads" | "problemas";
 
 type PaletteCommand = { label: string; hint?: string; icon: IconName; run: () => void };
 
@@ -712,56 +711,29 @@ function CommandPalette({ commands, onClose }: { commands: PaletteCommand[]; onC
   );
 }
 
-function ConsoleDock({ engine, open, tab, onTab, onToggle }: {
-  engine: ReturnType<typeof usePlayEngine>; open: boolean; tab: DockTab; onTab: (t: DockTab) => void; onToggle: () => void;
-}) {
+function ConsoleSection({ engine }: { engine: Engine }) {
+  const { log, error } = engine;
   const ref = useRef<HTMLDivElement>(null);
-  const { log, activity, error } = engine;
-  const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
-  const dlCount = activity ? 1 : 0;
-  const problems = error ? 1 : 0;
-  useEffect(() => { if (open && tab === "console" && ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log, open, tab]);
-  const Tab = ({ id, label, badge }: { id: DockTab; label: string; badge?: number }) => (
-    <button className={`dock-tab ${tab === id ? "on" : ""}`} onClick={() => onTab(id)}>
-      {label}{badge ? <span className="dock-badge">{badge}</span> : null}
-    </button>
-  );
+  const [tab, setTab] = useState<"console" | "problemas">("console");
+  useEffect(() => { if (tab === "console" && ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log, tab]);
   return (
-    <div className={`dock ${open ? "" : "collapsed"}`}>
-      <div className="dock-tabs">
-        <Tab id="console" label="Console" />
-        <Tab id="downloads" label="Downloads" badge={dlCount} />
-        <Tab id="problemas" label="Problemas" badge={problems} />
-        <div className="dock-actions">
-          <button className="icon-btn" title="Copiar console" onClick={() => { void navigator.clipboard?.writeText(log.join("\n")); }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-          </button>
-          <button className="icon-btn dock-toggle" title="Expandir / recolher" onClick={onToggle} aria-expanded={open}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15"><path d="m6 15 6-6 6 6" /></svg>
-          </button>
-        </div>
+    <div className="page">
+      <SectionHeading eyebrow="Servidor" title="Console" />
+      <div className="content-tabs console-tabs">
+        <button className={`content-tab ${tab === "console" ? "on" : ""}`} onClick={() => setTab("console")}>Console</button>
+        <button className={`content-tab ${tab === "problemas" ? "on" : ""}`} onClick={() => setTab("problemas")}>
+          Problemas{error ? <span className="tab-badge">1</span> : null}
+        </button>
+        <button className="btn ghost mini console-copy" title="Copiar console" disabled={!log.length} onClick={() => { void navigator.clipboard?.writeText(log.join("\n")); }}>Copiar</button>
       </div>
-      {open && tab === "console" && (
-        <div className="console" ref={ref}>
+      {tab === "console" ? (
+        <div className="console-page" ref={ref}>
           {log.length
             ? log.map((l, i) => <div className="ln" key={i}><span className="msg">{l}</span></div>)
             : <div className="ln dim"><span className="msg">Console vazio. Clique em Jogar ou Sincronizar para ver a saída.</span></div>}
         </div>
-      )}
-      {open && tab === "downloads" && (
-        <div className="console">
-          {activity ? (
-            <div className="dock-dl">
-              <div className="dock-dl-top"><b>{activity.label}</b><span className="st">{activity.detail}{pct !== null ? ` · ${pct}%` : ""}</span></div>
-              <div className="track"><div className="fill" style={{ width: `${pct ?? 100}%` }} /></div>
-            </div>
-          ) : (
-            <div className="ln dim"><span className="msg">Nenhum download em andamento.</span></div>
-          )}
-        </div>
-      )}
-      {open && tab === "problemas" && (
-        <div className="console">
+      ) : (
+        <div className="console-page">
           {error
             ? <div className="ln"><span className="lv warn">ERRO</span><span className="msg">{error}</span></div>
             : <div className="ln dim"><span className="msg">Nenhum problema. Tudo certo por aqui.</span></div>}
@@ -789,6 +761,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.12", t: "Temas com prévia ao vivo e 5 novos, ícones de arquivo novos, Console em tela própria, Configurações com abas no topo e 'carregar mais' no Conteúdo" },
   { v: "0.4.11", t: "Skin em 3D rotacionável, Conteúdo com mais colunas e filtros horizontais" },
   { v: "0.4.10", t: "Mods em grade, página de Downloads de verdade, tela de adicionar servidor centralizada e interface mais limpa" },
   { v: "0.4.9", t: "Mods do servidor, Mundos locais em grade, Configurações e Conteúdo em dois painéis, jogadores online por nome e lixeira do sync que não cresce mais" },
@@ -1334,6 +1307,9 @@ function FilesSection({ server }: { server: Server }) {
 // =========================================================== Configurações ==
 const ICON_PACKS: { id: string; label: string }[] = [
   { id: "classico", label: "Clássico" },
+  { id: "colorido", label: "Coloridos" },
+  { id: "minimalista", label: "Minimalistas" },
+  { id: "windows", label: "Windows" },
   { id: "neutro", label: "Neutro" },
   { id: "solido", label: "Sólido" },
   { id: "contraste", label: "Contraste" },
@@ -1341,12 +1317,41 @@ const ICON_PACKS: { id: string; label: string }[] = [
   { id: "destaque", label: "Destaque" },
 ];
 
+/** Mini-launcher renderizado com as cores de um tema — prévia ao vivo. */
+function ThemeMiniApp({ t }: { t: ThemeTokens }) {
+  const soft = hexRgba(t.accent, 0.16);
+  return (
+    <div className="tmini" style={{ background: t.bg }}>
+      <div className="tmini-tb" style={{ background: t.surface, borderBottom: `1px solid ${t.border}` }}>
+        <span className="tmini-gem" style={{ background: t.accent }} />
+        <span className="tmini-pill" style={{ background: t.surface3 }} />
+      </div>
+      <div className="tmini-b">
+        <div className="tmini-side" style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}>
+          <span className="tmini-nav" style={{ background: soft }}><i style={{ background: t.accent }} /></span>
+          <span className="tmini-nav"><i style={{ background: t.muted }} /></span>
+          <span className="tmini-nav"><i style={{ background: t.muted }} /></span>
+        </div>
+        <div className="tmini-main">
+          <div className="tmini-banner" style={{ background: `linear-gradient(120deg, ${t.accentDim}, ${t.info})` }} />
+          <div className="tmini-cards">
+            <div className="tmini-card" style={{ background: t.surface, borderColor: t.border }}><i style={{ background: t.accent }} /></div>
+            <div className="tmini-card" style={{ background: t.surface, borderColor: t.border }}><i style={{ background: t.info }} /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin, iconPack, onIconPack }: {
   server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
   autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
 }) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
   const [cat, setCat] = useState<SettingsCat>("aparencia");
+  const [hovered, setHovered] = useState<string | null>(null);
+  const shownTheme = THEMES[hovered ?? preset] ?? THEMES.aether;
   const [nick, setNick] = useState(server.username);
   useEffect(() => setNick(server.username), [server.username]);
 
@@ -1365,27 +1370,30 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
     <div className="page">
       <SectionHeading title="Configurações" eyebrow="Você" />
 
-      <div className="set-split">
-        <nav className="set-nav">
-          {cats.map((c) => (
-            <button key={c.id} className={cat === c.id ? "on" : ""} aria-current={cat === c.id ? "page" : undefined} onClick={() => setCat(c.id)}>
-              <Icon n={c.icon} />{c.label}
-            </button>
-          ))}
-        </nav>
+      <div className="content-tabs settings-tabs">
+        {cats.map((c) => (
+          <button key={c.id} className={`content-tab ${cat === c.id ? "on" : ""}`} aria-current={cat === c.id ? "page" : undefined} onClick={() => setCat(c.id)}>
+            <Icon n={c.icon} />{c.label}
+          </button>
+        ))}
+      </div>
 
-        <div className="set-body">
-          {cat === "aparencia" && (
+      {cat === "aparencia" && (
             <>
               <div className="setting">
                 <label>Tema</label>
+                <div className="theme-live">
+                  <ThemeMiniApp t={shownTheme.tokens} />
+                  <div className="theme-live-cap">
+                    <b>{shownTheme.label}</b>
+                    <span>{(hovered ?? preset) === preset ? "tema atual" : "passe o mouse para pré-visualizar"}</span>
+                  </div>
+                </div>
                 <div className="theme-grid">
                   {Object.entries(THEMES).map(([id, t]) => (
-                    <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label} onClick={() => onPreset(id)}>
-                      <span className="tprev" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
-                        <i className="tp-s" style={{ background: t.tokens.surface2 }} />
-                        <i className="tp-d" style={{ background: t.tokens.accent }} />
-                      </span>
+                    <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label}
+                      onMouseEnter={() => setHovered(id)} onMouseLeave={() => setHovered(null)} onClick={() => onPreset(id)}>
+                      <ThemeMiniApp t={t.tokens} />
                       <span className="tname">{t.label}</span>
                     </button>
                   ))}
@@ -1441,8 +1449,6 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
               </div>
             </div>
           )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1455,15 +1461,22 @@ function SkinViewer3D({ skin }: { skin: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const viewer = new SkinViewer({ canvas: canvasRef.current, width: 240, height: 320 });
+    const canvas = canvasRef.current;
+    const parent = canvas?.parentElement;
+    if (!canvas || !parent) return;
+    const dims = () => ({ w: Math.max(120, parent.clientWidth), h: Math.max(160, parent.clientHeight) });
+    const { w, h } = dims();
+    const viewer = new SkinViewer({ canvas, width: w, height: h });
     viewer.controls.enableZoom = false;
     viewer.controls.enablePan = false;
     viewer.zoom = 0.9;
     viewer.autoRotate = false;
     viewer.playerObject.rotation.y = 0.4; // ângulo inicial para parecer 3D
     viewerRef.current = viewer;
-    return () => viewer.dispose();
+    // Acompanha o tamanho do palco: mantém o boneco centralizado ao redimensionar.
+    const ro = new ResizeObserver(() => { const { w, h } = dims(); viewer.width = w; viewer.height = h; });
+    ro.observe(parent);
+    return () => { ro.disconnect(); viewer.dispose(); };
   }, []);
   useEffect(() => { void viewerRef.current?.loadSkin(skin).catch(() => {}); }, [skin]);
   return <canvas ref={canvasRef} className="skin-canvas" aria-label="Prévia 3D da skin — arraste para girar" />;
@@ -1706,6 +1719,8 @@ function ContentSection({ server }: { server: Server }) {
   const [category, setCategory] = useState<string | null>(null);
   const [results, setResults] = useState<ModItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
   const [installed, setInstalled] = useState<Record<string, string>>(() => loadInstalled(server.dir, "shader"));
   const [installing, setInstalling] = useState<string | null>(null);
@@ -1726,16 +1741,18 @@ function ContentSection({ server }: { server: Server }) {
     return () => { un.then((fn) => fn()); };
   }, []);
 
-  async function doSearch() {
-    setLoading(true); setError("");
+  async function doSearch(off = 0) {
+    if (off === 0) setLoading(true); else setLoadingMore(true);
+    setError("");
     try {
-      const rows = await invoke<ModItem[]>("modrinth_search", { kind, query, gameVersion: useCompat ? gameVersion : null, category });
-      setResults(rows);
-    } catch (e) { setError(String(e)); } finally { setLoading(false); }
+      const rows = await invoke<ModItem[]>("modrinth_search", { kind, query, gameVersion: useCompat ? gameVersion : null, category, offset: off });
+      setResults((prev) => (off === 0 ? rows : [...prev, ...rows]));
+      setHasMore(rows.length >= 24); // veio um lote cheio → provavelmente há mais
+    } catch (e) { setError(String(e)); } finally { setLoading(false); setLoadingMore(false); }
   }
 
   // Busca quando troca de aba, categoria, compatibilidade ou a versão carrega.
-  useEffect(() => { doSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [kind, useCompat, gameVersion, category]);
+  useEffect(() => { doSearch(0); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [kind, useCompat, gameVersion, category]);
 
   async function install(item: ModItem) {
     setInstalling(item.project_id); setError(""); setProgress(null);
@@ -1777,7 +1794,7 @@ function ContentSection({ server }: { server: Server }) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           <input placeholder={`Buscar ${isShader ? "shaders" : "texturas"} no Modrinth…`} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} />
         </div>
-        <button className="btn" disabled={loading} onClick={doSearch}>Buscar</button>
+        <button className="btn" disabled={loading} onClick={() => doSearch(0)}>Buscar</button>
         {gameVersion && (
           <FilterMenu label="Versão" value={useCompat ? "compat" : "all"}
             options={[{ id: "compat", label: `${gameVersion}` }, { id: "all", label: "Todas" }]}
@@ -1830,6 +1847,14 @@ function ContentSection({ server }: { server: Server }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {results.length > 0 && hasMore && (
+        <div className="content-more">
+          <button className="btn" disabled={loadingMore} onClick={() => doSearch(results.length)}>
+            {loadingMore ? "Carregando…" : "Carregar mais"}
+          </button>
         </div>
       )}
     </div>
