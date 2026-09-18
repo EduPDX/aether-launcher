@@ -5,18 +5,33 @@ export interface OnlinePlayers {
   names_complete?: boolean;
 }
 
+/** Jogadores online como uma pilha de avatares + nomes, direto no widget —
+ *  sem dropdown. Some quando não há ninguém ou o servidor não informa nomes. */
 export function PlayerRoster({ players }: { players: OnlinePlayers | null }) {
+  if (!players || players.online === 0 || !players.names?.length) return null;
+
+  const shown = players.names.slice(0, 5);
+  const extra = players.online - shown.length;
+
   return (
-    <details className="player-roster">
-      <summary>Ver jogadores online</summary>
-      {!players ? <p>Status de jogadores indisponível.</p>
-        : players.online === 0 ? <p>Nenhum jogador conectado.</p>
-        : !players.names?.length ? <p>O servidor informa a contagem, mas não disponibilizou os nomes.</p>
-        : <>
-          <ul>{players.names.map((name) => <li key={name}>{name}</li>)}</ul>
-          {!players.names_complete && <p>Lista parcial: {players.names.length} de {players.online} jogadores informados.</p>}
-        </>}
-      <p className="hint">Atualização automática a cada 15 segundos.</p>
-    </details>
+    <div className="roster">
+      <div className="roster-avatars">
+        {shown.map((name) => (
+          <span key={name} className="roster-av" title={name}>
+            {name.charAt(0).toUpperCase()}
+          </span>
+        ))}
+        {extra > 0 && (
+          <span className="roster-av more" title={`+${extra} online`}>+{extra}</span>
+        )}
+      </div>
+      <div className="roster-names" title={players.names.join(", ")}>
+        {shown.join(", ")}
+        {extra > 0 ? ` e +${extra}` : ""}
+      </div>
+      {!players.names_complete && players.names.length < players.online && (
+        <div className="roster-partial">lista parcial · {players.names.length} de {players.online}</div>
+      )}
+    </div>
   );
 }

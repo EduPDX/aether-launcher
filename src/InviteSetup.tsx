@@ -34,8 +34,9 @@ export function InviteSetup({ initial, onSave, onCancel, onManual }: {
     try { setResolved(await invoke<Invitation>("resolve_launcher_invite", { invitation: invitation.trim() })); }
     catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
-  return <div className="setup"><div className="brand"><h1>{initial ? "Atualizar convite" : "Seu próximo mundo começa aqui"}</h1></div>
+  return (
     <div className="card invite-card">
+      <h2 className="setup-card-title">{initial ? "Atualizar convite" : "Adicionar servidor"}</h2>
       <p className="hint">Cole o convite enviado pelo administrador. Os endereços e o perfil são preenchidos automaticamente.</p>
       <div className="field"><label htmlFor="invite">Convite do Aether</label><div className="row">
         <input id="invite" value={invitation} disabled={busy} placeholder="https://aether.exemplo.com/api/v1/public/launcher/…" onChange={e => { setInvitation(e.target.value); setResolved(null); }} onKeyDown={e => { if (e.key === "Enter" && invitation.trim() && !busy) void resolve(); }} />
@@ -56,5 +57,5 @@ export function InviteSetup({ initial, onSave, onCancel, onManual }: {
       {error && <p role="alert" className="error">{error}</p>}
       <div className="row invite-footer">{onCancel && <button className="btn ghost" onClick={onCancel}>Cancelar</button>}<button className="btn ghost" onClick={onManual}>Configuração manual</button></div>
     </div>
-  </div>;
+  );
 }

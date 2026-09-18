@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import "./App.css";
 import "./VisualRefresh.css";
 import { InviteSetup, ServerCover, invitationPatch, type Invitation } from "./InviteSetup";
@@ -528,6 +528,27 @@ function Shell(props: {
   const { current, section, stats } = props;
   const engine = usePlayEngine(current);
   const online = engine.info?.state === "running";
+  const [palette, setPalette] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const commands: PaletteCommand[] = [
+    { label: "Dashboard", icon: "dashboard", run: () => props.onSection("dashboard") },
+    { label: "Conteúdo", icon: "content", run: () => props.onSection("content") },
+    { label: "Arquivos", icon: "files", run: () => props.onSection("files") },
+    { label: "Mapa", icon: "map", run: () => props.onSection("map") },
+    { label: "Servidores", icon: "servers", run: () => props.onSection("servers") },
+    { label: "Skin", icon: "skin", run: () => props.onSection("skin") },
+    { label: "Configurações", icon: "settings", run: () => props.onSection("settings") },
+    { label: "Jogar", hint: "sincroniza e abre o jogo", icon: "play", run: () => { void engine.playNow(); } },
+    { label: "Sincronizar", icon: "refresh", run: () => { void engine.sync(); } },
+    { label: "Adicionar servidor", icon: "servers", run: () => props.onAdd() },
+  ];
 
   return (
     <div className="app">
@@ -538,6 +559,10 @@ function Shell(props: {
           <span className={`srv-dot ${online ? "online" : engine.info?.state === "crashed" ? "crashed" : ""}`} />
           <span className="nm">{current.label || current.server}</span>
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+        <button className="cmd" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <span className="cmd-lbl">Ir para…</span><kbd>Ctrl K</kbd>
         </button>
         <div className="tb-drag" data-tauri-drag-region />
         <div className="win-ctrls">
@@ -586,6 +611,8 @@ function Shell(props: {
         </main>
       </div>
 
+      <ConsoleDock log={engine.log} open={dockOpen} onToggle={() => setDockOpen((v) => !v)} />
+
       {/* status bar */}
       <div className="statusbar">
         <span className="si" title="uso do seu computador"><Icon n="cpu" />CPU {stats ? Math.round(stats.cpu) : "—"}%</span>
@@ -595,6 +622,7 @@ function Shell(props: {
         <span className="si">{STATE_LABEL[engine.info?.state ?? "unknown"] ?? "—"}</span>
         <span className="si">{current.username}</span>
       </div>
+      {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
     </div>
   );
 }
@@ -608,6 +636,65 @@ function NavItem({ icon, label, on, soon, onClick }: { icon: IconName; label: st
   );
 }
 
+type PaletteCommand = { label: string; hint?: string; icon: IconName; run: () => void };
+
+function CommandPalette({ commands, onClose }: { commands: PaletteCommand[]; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState(0);
+  const filtered = commands.filter((c) => c.label.toLowerCase().includes(q.trim().toLowerCase()));
+  useEffect(() => { setSel(0); }, [q]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, Math.max(0, filtered.length - 1))); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
+      else if (e.key === "Enter") { e.preventDefault(); filtered[sel]?.run(); onClose(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, sel, onClose]);
+  return (
+    <div className="palette-overlay" onClick={onClose}>
+      <div className="palette" onClick={(e) => e.stopPropagation()}>
+        <div className="palette-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <input autoFocus placeholder="Ir para uma seção ou ação…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <kbd>Esc</kbd>
+        </div>
+        <div className="palette-list">
+          {filtered.length === 0 && <div className="palette-empty">Nada encontrado.</div>}
+          {filtered.map((c, i) => (
+            <button key={c.label} className={`palette-item ${i === sel ? "on" : ""}`} onMouseEnter={() => setSel(i)} onClick={() => { c.run(); onClose(); }}>
+              <Icon n={c.icon} /><span className="pi-label">{c.label}</span>{c.hint && <span className="pi-hint">{c.hint}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConsoleDock({ log, open, onToggle }: { log: string[]; open: boolean; onToggle: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (open && ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log, open]);
+  return (
+    <div className={`dock ${open ? "" : "collapsed"}`}>
+      <button className="dock-bar" onClick={onToggle} aria-expanded={open}>
+        <svg className="dock-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>
+        <span className="dock-title">Console</span>
+        <span className="dock-count">{log.length ? `${log.length} linhas` : "vazio"}</span>
+      </button>
+      {open && (
+        <div className="console" ref={ref}>
+          {log.length
+            ? log.map((l, i) => <div className="cline" key={i}>{l}</div>)
+            : <div className="cline dim">Console vazio. Clique em Jogar ou Sincronizar para ver a saída.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionHeading({ title, description, eyebrow = "Seu espaço de jogo" }: { title: string; description: string; eyebrow?: string }) {
   return <div className="section-heading"><span className="eyebrow">{eyebrow}</span><h2>{title}</h2><p>{description}</p></div>;
 }
@@ -618,13 +705,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 
 // ============================================================ Dashboard =====
 function DashboardSection({ server, engine, stats, onConfig }: { server: Server; engine: Engine; stats: SystemStats | null; onConfig: () => void }) {
-  const { info, plan, busy, activity, log, error } = engine;
-  const [showLog, setShowLog] = useState(false);
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log, showLog]);
+  const { info, plan, busy, activity, error } = engine;
 
   const pct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
   const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
@@ -708,19 +789,48 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
       {plan?.synced && !busy && !activity && <p className="ok">✔ Tudo sincronizado com o servidor.</p>}
       {error && <p className="error">{error}</p>}
 
-      <div className="log-toggle">
-        <button className="btn ghost" onClick={() => setShowLog((v) => !v)}>{showLog ? "▾ Ocultar detalhes" : "▸ Mostrar detalhes"}</button>
-      </div>
-      {showLog && <div className="log" ref={logRef}>{log.join("\n") || "Pronto. Clique em Jogar para sincronizar e abrir o jogo."}</div>}
     </div>
   );
 }
 
 // =============================================================== Setup ======
+function SetupShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="onboard">
+      <div className="onboard-titlebar" data-tauri-drag-region>
+        <div className="win-ctrls">
+          <button onClick={() => win.minimize()} title="Minimizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg></button>
+          <button onClick={() => win.toggleMaximize()} title="Maximizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="5" width="14" height="14" rx="1.5" /></svg></button>
+          <button className="close" onClick={() => win.close()} title="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+        </div>
+      </div>
+      <div className="onboard-body">
+        <aside className="onboard-hero">
+          <div className="onboard-brand"><BrandLogo size={30} /><span className="wordmark">Aether</span></div>
+          <h1 className="onboard-title">A central de comando do seu servidor.</h1>
+          <p className="onboard-lead">Cole o convite, clique em Jogar e pronto — o launcher sincroniza os mods, instala o Java e o Forge, e abre o Minecraft já conectado ao servidor.</p>
+          <ul className="onboard-feats">
+            <li><Icon n="refresh" /> Sincroniza os mods automaticamente</li>
+            <li><Icon n="play" /> Entra direto no servidor ao clicar em Jogar</li>
+            <li><Icon n="map" /> Mapa, skin e arquivos num lugar só</li>
+          </ul>
+          <div className="onboard-glow" />
+        </aside>
+        <div className="onboard-panel">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function SetupScreen(props: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void }) {
   const [manual, setManual] = useState(!!props.initial && !props.initial.invitation);
-  if (!manual) return <InviteSetup {...props} onManual={() => setManual(true)} />;
-  return <ManualSetupScreen {...props} onInvite={() => setManual(false)} />;
+  return (
+    <SetupShell>
+      {manual
+        ? <ManualSetupScreen {...props} onInvite={() => setManual(false)} />
+        : <InviteSetup {...props} onManual={() => setManual(true)} />}
+    </SetupShell>
+  );
 }
 
 function ManualSetupScreen({ initial, onSave, onCancel, onInvite }: { initial: Server | null; onSave: (s: Server) => void; onCancel?: () => void; onInvite: () => void }) {
@@ -752,11 +862,12 @@ function ManualSetupScreen({ initial, onSave, onCancel, onInvite }: { initial: S
   const valido = server.trim() && profileId.trim() && username.trim();
 
   return (
-    <div className="setup">
-      <div className="brand"><BrandLogo size={30} /><h1>{initial ? "Editar servidor" : "Aether Launcher"}</h1></div>
-      <div className="card">
-        <button className="btn ghost" onClick={onInvite}>Usar convite do servidor</button>
-        {initial?.invitation && <p className="hint">Salvar manualmente desliga a atualização automática pelo convite.</p>}
+    <div className="card setup-card">
+      <div className="setup-card-head">
+        <h2>{initial ? "Editar servidor" : "Configuração manual"}</h2>
+        <button className="btn ghost" onClick={onInvite}>Usar convite</button>
+      </div>
+      {initial?.invitation && <p className="hint">Salvar manualmente desliga a atualização automática pelo convite.</p>}
         <div className="field">
           <label>Endereço do servidor</label>
           <input placeholder="http://192.168.1.10:8600" value={server} onChange={(e) => setServer(e.target.value)} />
@@ -795,7 +906,6 @@ function ManualSetupScreen({ initial, onSave, onCancel, onInvite }: { initial: S
           </button>
         </div>
       </div>
-    </div>
   );
 }
 
