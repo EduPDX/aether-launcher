@@ -425,7 +425,7 @@ function usePlayEngine(server: Server) {
 }
 
 type Engine = ReturnType<typeof usePlayEngine>;
-type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "mods" | "worlds" | "friends" | "help";
+type Section = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "mods" | "worlds" | "friends" | "help" | "downloads";
 
 // Lazy: chamar getCurrentWindow() só na ação evita quebrar fora do Tauri.
 const win = {
@@ -577,7 +577,7 @@ function Shell(props: {
         </button>
         <div className="tb-drag" data-tauri-drag-region />
         <div className="tb-right">
-          <button className="icon-btn" onClick={() => openDock("downloads")} title="Downloads">
+          <button className="icon-btn" onClick={() => props.onSection("downloads")} title="Downloads">
             <Icon n="download" />
           </button>
           <button className="icon-btn" onClick={() => openDock("problemas")} title="Notificações">
@@ -608,7 +608,7 @@ function Shell(props: {
           </div>
           <div className="nav-group">
             <span className="eyebrow">Você</span>
-            <NavItem icon="download" label="Downloads" count={dlCount || undefined} hot={dlCount > 0} on={dockOpen && dockTab === "downloads"} onClick={() => openDock("downloads")} />
+            <NavItem icon="download" label="Downloads" count={dlCount || undefined} hot={dlCount > 0} on={section === "downloads"} onClick={() => props.onSection("downloads")} />
             <NavItem icon="servers" label="Servidores" on={section === "servers"} onClick={() => props.onSection("servers")} />
             <NavItem icon="skin" label="Skin" on={section === "skin"} onClick={() => props.onSection("skin")} />
             <NavItem icon="friends" label="Amigos" soon on={section === "friends"} onClick={() => props.onSection("friends")} />
@@ -637,6 +637,7 @@ function Shell(props: {
           {section === "settings" && <SettingsSection server={current} preset={props.preset} onPreset={props.onPreset} onPatch={props.onPatch} autojoin={props.autojoin} onAutojoin={props.onAutojoin} iconPack={props.iconPack} onIconPack={props.onIconPack} />}
           {section === "mods" && <ModsSection server={current} />}
           {section === "worlds" && <WorldsSection server={current} />}
+          {section === "downloads" && <DownloadsSection engine={engine} />}
           {section === "friends" && <SoonSection icon="friends" eyebrow="Você" title="Amigos" description="Ver quem está online e entrar junto com um clique. Em breve. Os jogadores online já aparecem no Dashboard." />}
           {section === "help" && <SoonSection icon="help" eyebrow="Ajuda" title="Central de ajuda" description="Guias de instalação, solução de problemas e como pedir um convite ao administrador. Em breve." />}
         </main>
@@ -778,8 +779,8 @@ function SoonSection({ icon, eyebrow, title, description }: { icon: IconName; ey
   );
 }
 
-function SectionHeading({ title, description, eyebrow = "Seu espaço de jogo" }: { title: string; description: string; eyebrow?: string }) {
-  return <div className="section-heading"><span className="eyebrow">{eyebrow}</span><h2>{title}</h2><p>{description}</p></div>;
+function SectionHeading({ title, description, eyebrow = "Seu espaço de jogo" }: { title: string; description?: string; eyebrow?: string }) {
+  return <div className="section-heading"><span className="eyebrow">{eyebrow}</span><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>;
 }
 
 function EmptyState({ icon, title, description }: { icon: IconName; title: string; description: string }) {
@@ -787,6 +788,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.10", t: "Mods em grade, página de Downloads de verdade, tela de adicionar servidor centralizada e interface mais limpa" },
   { v: "0.4.9", t: "Mods do servidor, Mundos locais em grade, Configurações e Conteúdo em dois painéis, jogadores online por nome e lixeira do sync que não cresce mais" },
   { v: "0.4.8", t: "Visual fiel ao protótipo: banner do servidor, sidebar completa, dock com abas e status bar" },
   { v: "0.4.7", t: "Redesign: onboarding, avatares, Ctrl+K e console dock" },
@@ -816,7 +818,7 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 
   return (
     <div className="page">
-      <SectionHeading title="Vamos jogar?" description={`Bem-vindo, ${server.username}. Seu próximo mundo está aqui.`} eyebrow="Visão geral" />
+      <SectionHeading title="Vamos jogar?" eyebrow="Visão geral" />
       <div className="banner">
         <ServerCover url={server.coverUrl} credit={server.coverCredit} />
         <div className="brow">Servidor</div>
@@ -920,28 +922,17 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
 // =============================================================== Setup ======
 function SetupShell({ children }: { children: ReactNode }) {
   return (
-    <div className="onboard">
+    <div className="setup-screen">
       <div className="onboard-titlebar" data-tauri-drag-region>
+        <div className="brand"><BrandLogo size={22} /><span className="wordmark">Aether</span></div>
+        <div className="tb-drag" data-tauri-drag-region />
         <div className="win-ctrls">
           <button onClick={() => win.minimize()} title="Minimizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg></button>
           <button onClick={() => win.toggleMaximize()} title="Maximizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="5" width="14" height="14" rx="1.5" /></svg></button>
           <button className="close" onClick={() => win.close()} title="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
         </div>
       </div>
-      <div className="onboard-body">
-        <aside className="onboard-hero">
-          <div className="onboard-brand"><BrandLogo size={30} /><span className="wordmark">Aether</span></div>
-          <h1 className="onboard-title">A central de comando do seu servidor.</h1>
-          <p className="onboard-lead">Cole o convite, clique em Jogar e pronto — o launcher sincroniza os mods, instala o Java e o Forge, e abre o Minecraft já conectado ao servidor.</p>
-          <ul className="onboard-feats">
-            <li><Icon n="refresh" /> Sincroniza os mods automaticamente</li>
-            <li><Icon n="play" /> Entra direto no servidor ao clicar em Jogar</li>
-            <li><Icon n="map" /> Mapa, skin e arquivos num lugar só</li>
-          </ul>
-          <div className="onboard-glow" />
-        </aside>
-        <div className="onboard-panel">{children}</div>
-      </div>
+      <div className="setup-center">{children}</div>
     </div>
   );
 }
@@ -950,9 +941,18 @@ function SetupScreen(props: { initial: Server | null; onSave: (s: Server) => voi
   const [manual, setManual] = useState(!!props.initial && !props.initial.invitation);
   return (
     <SetupShell>
-      {manual
-        ? <ManualSetupScreen {...props} onInvite={() => setManual(false)} />
-        : <InviteSetup {...props} onManual={() => setManual(true)} />}
+      <div className="setup-stack">
+        {manual
+          ? <ManualSetupScreen {...props} onInvite={() => setManual(false)} />
+          : <InviteSetup {...props} onManual={() => setManual(true)} />}
+        {!manual && (
+          <ul className="setup-feats">
+            <li><Icon n="refresh" /> Sincroniza os mods automaticamente</li>
+            <li><Icon n="play" /> Entra direto no servidor ao clicar em Jogar</li>
+            <li><Icon n="map" /> Mapa, skin e arquivos num lugar só</li>
+          </ul>
+        )}
+      </div>
     </SetupShell>
   );
 }
@@ -1039,10 +1039,7 @@ function ServersSection({ servers, active, onSwitch, onAdd, onEdit, onRemove }: 
 }) {
   return (
     <div className="page">
-      <div className="page-head">
-        <SectionHeading title="Seus servidores" description="Escolha onde jogar ou conecte um novo servidor." eyebrow="Biblioteca" />
-        <div className="actions"><button className="btn primary" onClick={onAdd}>+ Adicionar</button></div>
-      </div>
+      <SectionHeading title="Seus servidores" eyebrow="Biblioteca" />
       <div className="srv-grid">
         {servers.map((s, i) => (
           <div key={i} className={`srv-card ${i === active ? "active" : ""}`}>
@@ -1222,7 +1219,7 @@ function FilesSection({ server }: { server: Server }) {
   return (
     <div className="page">
       <div className="page-head">
-        <SectionHeading title="Arquivos do jogo" description="Explore sua instalação, edite arquivos locais e recupere itens da lixeira." eyebrow="Sua instalação" />
+        <SectionHeading title="Arquivos" eyebrow="Sua instalação" />
         {tab === "files" && (
           <div className="actions">
             <div className="vtoggle">
@@ -1307,7 +1304,6 @@ function FilesSection({ server }: { server: Server }) {
             </div>
           )}
 
-          <p className="hint" style={{ marginTop: 14 }}>Arquivos marcados <b>servidor</b> são sincronizados e ficam travados. O que você apaga vai para a lixeira (recuperável), nunca é apagado de vez.</p>
         </>
       ) : (
         <>
@@ -1327,7 +1323,6 @@ function FilesSection({ server }: { server: Server }) {
               </div>
             </div>
           ))}
-          <p className="hint" style={{ marginTop: 14 }}>A lixeira é a pasta <b>.aether-trash</b> dentro do jogo. Tudo que você exclui fica aqui, recuperável, antes de sumir de vez.</p>
         </>
       )}
     </div>
@@ -1366,7 +1361,7 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
 
   return (
     <div className="page">
-      <SectionHeading title="Configurações" description="Ajustes do launcher e do jogo. Tudo é salvo automaticamente." eyebrow="Você" />
+      <SectionHeading title="Configurações" eyebrow="Você" />
 
       <div className="set-split">
         <nav className="set-nav">
@@ -1405,7 +1400,6 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
                     </button>
                   ))}
                 </div>
-                <p className="hint">Muda como pastas e arquivos aparecem no gerenciador de arquivos.</p>
               </div>
             </>
           )}
@@ -1494,7 +1488,7 @@ function SkinSection({ server, onPatch }: { server: Server; onPatch: (p: Partial
 
   return (
     <div className="page">
-      <SectionHeading title="Sua identidade" description="Um nome, uma aparência, seu jeito de explorar." eyebrow="Skin e jogador" />
+      <SectionHeading title="Skin" eyebrow="Skin e jogador" />
 
       <div className="skin-split">
         <div className="skin-preview">
@@ -1591,12 +1585,10 @@ function ModsSection({ server }: { server: Server }) {
 
   const term = q.trim().toLowerCase();
   const list = (mods ?? []).filter((m) => m.name.toLowerCase().includes(term));
-  const totalSize = (mods ?? []).reduce((s, m) => s + m.size, 0);
 
   return (
     <div className="page">
-      <SectionHeading eyebrow="Servidor" title="Mods"
-        description={mods ? `${mods.length} mods sincronizados do servidor · ${formatBytes(totalSize)}` : "Os mods que este servidor entrega para o seu jogo."} />
+      <SectionHeading eyebrow="Servidor" title="Mods" />
 
       <div className="searchbar mods-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
@@ -1611,32 +1603,23 @@ function ModsSection({ server }: { server: Server }) {
       )}
 
       {mods && list.length > 0 && (
-        <div className="tbl-wrap">
-          <table>
-            <thead><tr><th>Nome</th><th>Tipo</th><th>Tamanho</th><th>Estado</th></tr></thead>
-            <tbody>
-              {list.map((m) => (
-                <tr key={m.path}>
-                  <td>
-                    <div className="mname">
-                      <span className="mi" style={{ background: `linear-gradient(135deg, hsl(${modHue(m.name)} 58% 46%), hsl(${(modHue(m.name) + 40) % 360} 58% 32%))` }}>{m.name.charAt(0).toUpperCase()}</span>
-                      <b>{m.name.replace(/\.jar$/i, "")}</b>
-                    </div>
-                  </td>
-                  <td>{m.action === "optional" ? <span className="pill info">opcional</span> : <span className="pill lock"><Icon n="lock" />obrigatório</span>}</td>
-                  <td className="tnum">{formatBytes(m.size)}</td>
-                  <td>{m.present ? <span className="pill ok">baixado</span> : <span className="pill mute">pendente</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mods-grid">
+          {list.map((m) => (
+            <div key={m.path} className="mcard" title={m.name}>
+              <span className="mi" style={{ background: `linear-gradient(135deg, hsl(${modHue(m.name)} 58% 46%), hsl(${(modHue(m.name) + 40) % 360} 58% 32%))` }}>{m.name.charAt(0).toUpperCase()}</span>
+              <div className="mcard-body">
+                <div className="mcard-name">{m.name.replace(/\.jar$/i, "")}</div>
+                <div className="mcard-meta">
+                  {m.action === "optional" ? <span className="pill info">opcional</span> : <span className="pill lock"><Icon n="lock" />obrigatório</span>}
+                  <span className="mcard-size tnum">{formatBytes(m.size)}</span>
+                </div>
+              </div>
+              <span className={`mcard-dot ${m.present ? "on" : ""}`} title={m.present ? "baixado" : "pendente (baixa ao sincronizar)"} />
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="ctxhint">
-        <Icon n="lock" />
-        <span>Os mods vêm da <b>sincronização do servidor</b> e não são editáveis aqui — se você apagar algum, o próximo sync o traz de volta. Para adicionar shaders e texturas do seu lado, use <b>Conteúdo</b>.</span>
-      </div>
     </div>
   );
 }
@@ -1723,7 +1706,7 @@ function ContentSection({ server }: { server: Server }) {
 
   return (
     <div className="page">
-      <SectionHeading title="Um novo olhar para seu mundo" description="Descubra shaders e texturas do Modrinth para personalizar seu jogo." eyebrow="Conteúdo" />
+      <SectionHeading title="Conteúdo" eyebrow="Conteúdo" />
 
       <div className="content-tabs">
         <button className={`content-tab ${isShader ? "on" : ""}`} onClick={() => switchKind("shader")}>
@@ -1806,9 +1789,92 @@ function ContentSection({ server }: { server: Server }) {
             </div>
           )}
 
-          <p className="hint" style={{ marginTop: 14 }}>Instala em <b>{isShader ? "shaderpacks/" : "resourcepacks/"}</b>. No jogo, ative em Opções ▸ {isShader ? "Shaders (precisa do Iris/OptiFine)" : "Pacotes de Recursos"}.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =========================================================== Downloads ======
+function DownloadsSection({ engine }: { engine: Engine }) {
+  const { activity, busy } = engine;
+  const syncPct = activity && activity.total > 0 ? Math.round((activity.done / activity.total) * 100) : null;
+  const [installs, setInstalls] = useState<Record<string, ContentProgress>>({});
+  const [done, setDone] = useState<{ name: string; kind: "sync" | "content" }[]>([]);
+  const wasBusy = useRef(false);
+
+  // Instalações do Modrinth em andamento (evento global do backend).
+  useEffect(() => {
+    const un = listen<ContentProgress>("content-progress", (e) => {
+      const p = e.payload;
+      if (p.total > 0 && p.done >= p.total) {
+        setInstalls((prev) => { const n = { ...prev }; delete n[p.name]; return n; });
+        setDone((prev) => [{ name: p.name, kind: "content" as const }, ...prev].slice(0, 30));
+      } else {
+        setInstalls((prev) => ({ ...prev, [p.name]: p }));
+      }
+    });
+    return () => { un.then((fn) => fn()); };
+  }, []);
+
+  // Quando o sync termina, vira histórico.
+  useEffect(() => {
+    if (wasBusy.current && !busy) setDone((prev) => [{ name: "Sincronização do servidor", kind: "sync" as const }, ...prev].slice(0, 30));
+    wasBusy.current = busy;
+  }, [busy]);
+
+  const activeInstalls = Object.values(installs);
+  const activeCount = (busy ? 1 : 0) + activeInstalls.length;
+
+  return (
+    <div className="page">
+      <SectionHeading eyebrow="Você" title="Downloads" />
+
+      <div className="dl-head">
+        <span className="dl-count">{activeCount > 0 ? `${activeCount} ativo${activeCount > 1 ? "s" : ""}` : "Nada em andamento"}</span>
+        {done.length > 0 && <button className="btn ghost" onClick={() => setDone([])}>Limpar concluídos</button>}
+      </div>
+
+      {busy && activity && (
+        <div className="dl-row">
+          <div className="dl-ic"><Icon n="refresh" /></div>
+          <div className="dl-main">
+            <div className="dl-top"><b>{activity.label}</b><span className="st">{activity.detail}{syncPct !== null ? ` · ${syncPct}%` : ""}</span></div>
+            <div className="track"><div className={`fill ${syncPct === null ? "indeterminate" : ""}`} style={syncPct !== null ? { width: `${syncPct}%` } : undefined} /></div>
+          </div>
+        </div>
+      )}
+
+      {activeInstalls.map((p) => {
+        const pp = p.total > 0 ? Math.round((p.done / p.total) * 100) : null;
+        return (
+          <div className="dl-row" key={p.name}>
+            <div className="dl-ic"><Icon n="content" /></div>
+            <div className="dl-main">
+              <div className="dl-top"><b>{p.name}</b><span className="st">{pp !== null ? `${pp}%` : "baixando…"}</span></div>
+              <div className="track"><div className={`fill ${pp === null ? "indeterminate" : ""}`} style={pp !== null ? { width: `${pp}%` } : undefined} /></div>
+            </div>
+          </div>
+        );
+      })}
+
+      {activeCount === 0 && done.length === 0 && (
+        <EmptyState icon="download" title="Nenhum download agora" description="Quando você sincronizar o servidor ou instalar shaders e texturas, o progresso aparece aqui." />
+      )}
+
+      {done.length > 0 && (
+        <>
+          <div className="dl-sub-h">Concluídos nesta sessão</div>
+          <div className="dl-done-list">
+            {done.map((d, i) => (
+              <div className="dl-row done" key={i}>
+                <div className="dl-ic"><Icon n={d.kind === "sync" ? "refresh" : "content"} /></div>
+                <div className="dl-main"><div className="dl-top"><b>{d.name}</b><span className="st"><span className="pill ok">concluído</span></span></div></div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1847,8 +1913,7 @@ function WorldsSection({ server }: { server: Server }) {
 
   return (
     <div className="page">
-      <SectionHeading eyebrow="Você" title="Mundos"
-        description={worlds ? `${worlds.length} ${worlds.length === 1 ? "mundo" : "mundos"} neste computador` : "Seus mundos salvos neste computador."} />
+      <SectionHeading eyebrow="Você" title="Mundos" />
 
       {error && <div className="error">Não consegui ler seus mundos: {error}</div>}
       {!worlds && !error && <div className="mods-loading">Procurando mundos…</div>}
@@ -1871,10 +1936,6 @@ function WorldsSection({ server }: { server: Server }) {
         </div>
       )}
 
-      <div className="ctxhint">
-        <Icon n="worlds" />
-        <span>Estes são seus mundos <b>single-player</b> locais (pasta <code>saves/</code>) — a capa é o próprio ícone que o Minecraft gera. O mundo do servidor fica na aba <b>Mapa</b>.</span>
-      </div>
     </div>
   );
 }
