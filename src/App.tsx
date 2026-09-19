@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -761,6 +762,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.13", t: "Configurações com mais categorias (Geral, Java & RAM, Minecraft, Atualizações…), changelog agora em Atualizações e Dashboard reorganizado" },
   { v: "0.4.12", t: "Temas com prévia ao vivo e 5 novos, ícones de arquivo novos, Console em tela própria, Configurações com abas no topo e 'carregar mais' no Conteúdo" },
   { v: "0.4.11", t: "Skin em 3D rotacionável, Conteúdo com mais colunas e filtros horizontais" },
   { v: "0.4.10", t: "Mods em grade, página de Downloads de verdade, tela de adicionar servidor centralizada e interface mais limpa" },
@@ -843,9 +845,9 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
         </div>
       </div>
 
-      <div className="grid dash-cols">
-        <div className="card">
-          <div className="panel-h"><h4>No servidor agora</h4><span className="eyebrow">{pcount ? `${pcount.online} de ${pcount.max}` : "—"}</span></div>
+      <div className="card server-now">
+        <div className="panel-h"><h4>No servidor agora</h4><span className="eyebrow">{pcount ? `${pcount.online} de ${pcount.max}` : "—"}</span></div>
+        <div className="server-now-body">
           <div className="online-body">
             {pcount && pcount.online > 0 ? (
               pcount.names && pcount.names.length > 0
@@ -855,21 +857,15 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
               <div className="online-none"><Icon n="players" /><span>Ninguém online agora. Clique em <b>Jogar</b> e seja o primeiro.</span></div>
             )}
           </div>
-          <div className="feed-item">
-            <div className="feed-ic"><Icon n="server" /></div>
-            <div><h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5><p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}.` : "Consultando o servidor…"}</p></div>
-          </div>
-          <div className="feed-actions">
-            <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
-            <button className="btn ghost" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
-          </div>
-        </div>
-        <div className="card">
-          <div className="panel-h"><h4>Changelog</h4><span className="eyebrow">launcher</span></div>
-          <div className="changelog">
-            {LAUNCHER_CHANGELOG.map((c) => (
-              <div className="cl-row" key={c.v}><span className="v">{c.v}</span><span>{c.t}</span></div>
-            ))}
+          <div className="server-now-side">
+            <div className="feed-item">
+              <div className="feed-ic"><Icon n="server" /></div>
+              <div><h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5><p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}.` : "Consultando o servidor…"}</p></div>
+            </div>
+            <div className="feed-actions">
+              <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
+              <button className="btn ghost" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1349,21 +1345,39 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
   autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
 }) {
   const memGb = (server.memoryMb ?? DEFAULT_MEMORY_MB) / 1024;
-  const [cat, setCat] = useState<SettingsCat>("aparencia");
+  const [cat, setCat] = useState<SettingsCat>("geral");
   const [hovered, setHovered] = useState<string | null>(null);
   const shownTheme = THEMES[hovered ?? preset] ?? THEMES.aether;
   const [nick, setNick] = useState(server.username);
+  const [version, setVersion] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [updMsg, setUpdMsg] = useState("");
   useEffect(() => setNick(server.username), [server.username]);
+  useEffect(() => { getVersion().then(setVersion).catch(() => {}); }, []);
 
   async function pickDir() {
     const chosen = await open({ directory: true, title: "Pasta do Minecraft (.minecraft)" });
     if (typeof chosen === "string") onPatch({ dir: chosen });
   }
+  async function checkUpdates() {
+    setChecking(true); setUpdMsg("");
+    try {
+      const u = await check();
+      setUpdMsg(u ? `Nova versão ${u.version} disponível — reinicie o launcher para atualizar.` : "Você está na versão mais recente.");
+    } catch { setUpdMsg("Não foi possível verificar agora. Tente mais tarde."); } finally { setChecking(false); }
+  }
+  function openGameDir() { void invoke("fs_reveal", { dir: server.dir, rel: "" }).catch(() => {}); }
 
   const cats: { id: SettingsCat; label: string; icon: IconName }[] = [
-    { id: "aparencia", label: "Interface & Temas", icon: "content" },
-    { id: "jogo", label: "Jogo & Java", icon: "play" },
+    { id: "geral", label: "Geral", icon: "settings" },
     { id: "conta", label: "Conta", icon: "friends" },
+    { id: "java", label: "Java & RAM", icon: "ram" },
+    { id: "minecraft", label: "Minecraft", icon: "play" },
+    { id: "downloads", label: "Downloads", icon: "download" },
+    { id: "interface", label: "Interface & Temas", icon: "content" },
+    { id: "performance", label: "Performance", icon: "cpu" },
+    { id: "atualizacoes", label: "Atualizações", icon: "refresh" },
+    { id: "avancado", label: "Avançado", icon: "lock" },
   ];
 
   return (
@@ -1378,82 +1392,156 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
         ))}
       </div>
 
-      {cat === "aparencia" && (
-            <>
-              <div className="setting">
-                <label>Tema</label>
-                <div className="theme-live">
-                  <ThemeMiniApp t={shownTheme.tokens} />
-                  <div className="theme-live-cap">
-                    <b>{shownTheme.label}</b>
-                    <span>{(hovered ?? preset) === preset ? "tema atual" : "passe o mouse para pré-visualizar"}</span>
-                  </div>
-                </div>
-                <div className="theme-grid">
-                  {Object.entries(THEMES).map(([id, t]) => (
-                    <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label}
-                      onMouseEnter={() => setHovered(id)} onMouseLeave={() => setHovered(null)} onClick={() => onPreset(id)}>
-                      <ThemeMiniApp t={t.tokens} />
-                      <span className="tname">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+      {cat === "geral" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
+            <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} role="switch" aria-checked={autojoin} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
+          </div>
+        </div>
+      )}
 
-              <div className="setting">
-                <label>Ícones de arquivo</label>
-                <div className="iconpack-grid">
-                  {ICON_PACKS.map((p) => (
-                    <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
-                      <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+      {cat === "conta" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Nome do jogador</h5><p>Igual à whitelist (maiúsculas contam, modo offline). É por este nome que a skin é encontrada.</p></div>
+            <div className="ctl row">
+              <input type="text" style={{ width: 200 }} value={nick} maxLength={16} onChange={(e) => setNick(e.target.value)} />
+              <button className="btn" disabled={!/^[A-Za-z0-9_]{3,16}$/.test(nick.trim()) || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar</button>
+            </div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Modo de login</h5><p>Hoje o launcher entra em modo offline — serve a servidores com <code>online-mode=false</code>. Login Microsoft está no roteiro.</p></div>
+            <div className="ctl"><span className="pill mute">offline</span></div>
+          </div>
+        </div>
+      )}
 
-          {cat === "jogo" && (
-            <div className="setting" style={{ paddingTop: 0 }}>
-              <div className="set-row">
-                <div className="txt"><h5>Entrar direto no servidor</h5><p>Ao clicar em Jogar, entra no servidor pulando o menu do Minecraft.</p></div>
-                <div className="ctl"><button className={`toggle ${autojoin ? "on" : ""}`} role="switch" aria-checked={autojoin} aria-label="Entrar direto no servidor" onClick={() => onAutojoin(!autojoin)} /></div>
-              </div>
-              <div className="set-row">
-                <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
-                <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
-                  <input aria-label="Memória do jogo em GB" type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
-                  <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
-                </div>
-              </div>
-              <div className="set-row">
-                <div className="txt"><h5>Pasta do jogo</h5><p>Onde os arquivos do jogo ficam neste computador. O Java certo é instalado automaticamente.</p></div>
-                <div className="ctl row"><input type="text" style={{ width: 240 }} value={server.dir} readOnly /><button className="btn" onClick={pickDir}>Escolher…</button></div>
+      {cat === "java" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Memória do jogo</h5><p>Quanto o Minecraft pode usar de RAM. 4–8 GB serve à maioria dos servidores com mods.</p></div>
+            <div className="ctl" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 240 }}>
+              <input aria-label="Memória do jogo em GB" type="range" min={1} max={16} step={0.5} value={memGb} onChange={(e) => onPatch({ memoryMb: Math.round(Number(e.target.value) * 1024) })} />
+              <b className="tnum" style={{ whiteSpace: "nowrap" }}>{memGb.toFixed(1)} GB</b>
+            </div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Java</h5><p>O launcher instala e usa o Java certo (17) automaticamente para esta versão — você não precisa configurar nada.</p></div>
+            <div className="ctl"><span className="pill ok">automático</span></div>
+          </div>
+        </div>
+      )}
+
+      {cat === "minecraft" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Pasta do jogo</h5><p>Onde os arquivos do jogo ficam neste computador.</p></div>
+            <div className="ctl row"><input type="text" style={{ width: 240 }} value={server.dir} readOnly /><button className="btn" onClick={pickDir}>Escolher…</button></div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Abrir a pasta</h5><p>Ver mods, configs e mundos no explorador de arquivos.</p></div>
+            <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
+          </div>
+        </div>
+      )}
+
+      {cat === "downloads" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Onde ficam os downloads</h5><p>Mods, shaders e texturas baixam para a pasta do jogo. O progresso ao vivo aparece na aba <b>Downloads</b>.</p></div>
+            <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Limpeza automática</h5><p>Versões antigas de arquivos substituídos vão para uma lixeira interna e são podadas sozinhas — sem acumular espaço em disco.</p></div>
+            <div className="ctl"><span className="pill ok">ativa</span></div>
+          </div>
+        </div>
+      )}
+
+      {cat === "interface" && (
+        <>
+          <div className="setting" style={{ paddingTop: 0 }}>
+            <label>Tema</label>
+            <div className="theme-live">
+              <ThemeMiniApp t={shownTheme.tokens} />
+              <div className="theme-live-cap">
+                <b>{shownTheme.label}</b>
+                <span>{(hovered ?? preset) === preset ? "tema atual" : "passe o mouse para pré-visualizar"}</span>
               </div>
             </div>
-          )}
-
-          {cat === "conta" && (
-            <div className="setting" style={{ paddingTop: 0 }}>
-              <div className="set-row">
-                <div className="txt"><h5>Nome do jogador</h5><p>Igual à whitelist (maiúsculas contam, modo offline). É por este nome que a skin é encontrada.</p></div>
-                <div className="ctl row">
-                  <input type="text" style={{ width: 200 }} value={nick} maxLength={16} onChange={(e) => setNick(e.target.value)} />
-                  <button className="btn" disabled={!/^[A-Za-z0-9_]{3,16}$/.test(nick.trim()) || nick.trim() === server.username} onClick={() => onPatch({ username: nick.trim() })}>Salvar</button>
-                </div>
-              </div>
-              <div className="set-row">
-                <div className="txt"><h5>Modo de login</h5><p>Hoje o launcher entra em modo offline — serve a servidores com <code>online-mode=false</code>. Login Microsoft está no roteiro.</p></div>
-                <div className="ctl"><span className="pill mute">offline</span></div>
-              </div>
+            <div className="theme-grid">
+              {Object.entries(THEMES).map(([id, t]) => (
+                <button key={id} className={`tcard ${preset === id ? "on" : ""}`} aria-pressed={preset === id} title={t.label}
+                  onMouseEnter={() => setHovered(id)} onMouseLeave={() => setHovered(null)} onClick={() => onPreset(id)}>
+                  <ThemeMiniApp t={t.tokens} />
+                  <span className="tname">{t.label}</span>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+          <div className="setting">
+            <label>Ícones de arquivo</label>
+            <div className="iconpack-grid">
+              {ICON_PACKS.map((p) => (
+                <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
+                  <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {cat === "performance" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Memória</h5><p>O ajuste que mais afeta o desempenho é a memória — configure em <b>Java & RAM</b>.</p></div>
+            <div className="ctl"><b className="tnum">{memGb.toFixed(1)} GB</b></div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Argumentos da JVM</h5><p>Ajustes finos de coletor de lixo e flags avançadas chegam em breve.</p></div>
+            <div className="ctl"><span className="pill mute">em breve</span></div>
+          </div>
+        </div>
+      )}
+
+      {cat === "atualizacoes" && (
+        <>
+          <div className="setting" style={{ paddingTop: 0 }}>
+            <div className="set-row">
+              <div className="txt"><h5>Versão do launcher</h5><p>As atualizações chegam automaticamente. Você também pode verificar agora.</p></div>
+              <div className="ctl row" style={{ alignItems: "center" }}><b className="tnum">{version || "—"}</b><button className="btn" disabled={checking} onClick={checkUpdates}>{checking ? "Verificando…" : "Verificar"}</button></div>
+            </div>
+            {updMsg && <p className="hint" style={{ marginTop: 4 }}>{updMsg}</p>}
+          </div>
+          <div className="setting">
+            <label>Novidades</label>
+            <div className="card"><div className="changelog">
+              {LAUNCHER_CHANGELOG.map((c) => (<div className="cl-row" key={c.v}><span className="v">{c.v}</span><span>{c.t}</span></div>))}
+            </div></div>
+          </div>
+        </>
+      )}
+
+      {cat === "avancado" && (
+        <div className="setting" style={{ paddingTop: 0 }}>
+          <div className="set-row">
+            <div className="txt"><h5>Pasta do jogo</h5><p>Abrir a instalação para inspecionar ou editar arquivos manualmente.</p></div>
+            <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Reinstalar Java / Forge</h5><p>Refazer a instalação em caso de arquivos corrompidos chega em breve.</p></div>
+            <div className="ctl"><span className="pill mute">em breve</span></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-type SettingsCat = "aparencia" | "jogo" | "conta";
+type SettingsCat = "geral" | "conta" | "java" | "minecraft" | "downloads" | "interface" | "performance" | "atualizacoes" | "avancado";
 
 // ================================================================ Skin ======
 /** Boneco 3D da skin, rotacionável com o mouse (arraste). */

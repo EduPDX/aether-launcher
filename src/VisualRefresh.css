@@ -428,3 +428,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .console-page .ln.dim .msg { color: var(--text-mute); }
 .console-page .ln .lv { flex-shrink: 0; font-weight: 700; }
 .console-page .ln .lv.warn { color: var(--warn); }
+
+/* ===== Dashboard — painel "No servidor agora" em largura total (2 colunas) ===== */
+.server-now { margin-top: 14px; }
+.server-now-body { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; }
+.server-now-body .online-body { border-bottom: 0; border-right: 1px solid var(--border-soft); }
+.server-now-side { display: flex; flex-direction: column; }
+.server-now-side .feed-item { border-bottom: 0; flex: 1; }
+@media (max-width: 720px) { .server-now-body { grid-template-columns: 1fr; } .server-now-body .online-body { border-right: 0; border-bottom: 1px solid var(--border-soft); } }
+
+/* Configurações — 9 categorias em abas no topo, podem quebrar linha */
+.settings-tabs { flex-wrap: wrap; }
