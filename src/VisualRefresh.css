@@ -94,7 +94,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .banner .cta { flex-shrink: 0; }
 .banner .play { background: #fff; color: #0b3b2e; min-width: 130px; justify-content: center; padding: 15px 25px; box-shadow: 0 8px 22px rgba(0,0,0,.28); font-weight: 750; }
 .banner .g-btn { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.24); }
-.widgets { gap: 12px; margin-top: 18px; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; }
+.widgets { gap: 12px; margin-top: 18px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: stretch; }
+.wl-sub { color: var(--text-mute); font-size: 11px; margin-top: 8px; }
 .widget { padding: 20px 16px; min-height: 136px; }
 .widget .wl { color: var(--text-dim); font-size: 10px; letter-spacing: .04em; }
 .widget .wv { font-size: 29px; margin-top: 12px; }
@@ -439,3 +440,34 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 
 /* Configurações — 9 categorias em abas no topo, podem quebrar linha */
 .settings-tabs { flex-wrap: wrap; }
+
+/* Prévia grande de tema — estilo do painel do servidor */
+.theme-live-dash .tdash { width: 340px; max-width: 60%; }
+.tdash { aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; display: flex; pointer-events: none; }
+.tdash-side { width: 27%; padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; }
+.tdash-brand { display: flex; align-items: center; gap: 5px; font-size: 8px; font-weight: 700; margin-bottom: 3px; }
+.tdash-gem { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.tdash-nav { font-size: 7.5px; padding: 3px 5px; border-radius: 4px; }
+.tdash-main { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tdash-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tdash-tile { border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+.tdash-tile span { font-size: 7px; text-transform: uppercase; letter-spacing: .04em; }
+.tdash-tile b { font-size: 13px; }
+.tdash-chart { flex: 1; border-radius: 6px; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+.tdash-chart-t { font-size: 7.5px; }
+.tdash-bars { flex: 1; display: flex; align-items: flex-end; gap: 5px; }
+.tdash-bars i { flex: 1; border-radius: 3px 3px 0 0; display: block; }
+.tdash-badges { display: flex; gap: 5px; }
+.tdash-badges span { font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 100px; }
+
+/* Amigos — lista com status online */
+.friend-add { display: flex; gap: 10px; margin-bottom: 18px; }
+.friend-add input { flex: 1; max-width: 320px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font: inherit; font-size: 13px; padding: 10px 13px; outline: none; }
+.friend-add input:focus { border-color: var(--text-mute); }
+.friend-list { display: flex; flex-direction: column; gap: 8px; }
+.friend-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.friend-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--surface-3); color: var(--text-dim); flex-shrink: 0; }
+.friend-av.on { background: linear-gradient(135deg, var(--accent), var(--info)); color: var(--accent-ink); }
+.friend-name { font-weight: 600; font-size: 13.5px; }
+.friend-status { margin-left: auto; font-size: 11.5px; font-weight: 650; color: var(--text-mute); }
+.friend-status.on { color: var(--accent); }

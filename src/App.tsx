@@ -615,7 +615,7 @@ function Shell(props: {
             <NavItem icon="download" label="Downloads" count={dlCount || undefined} hot={dlCount > 0} on={section === "downloads"} onClick={() => props.onSection("downloads")} />
             <NavItem icon="servers" label="Servidores" on={section === "servers"} onClick={() => props.onSection("servers")} />
             <NavItem icon="skin" label="Skin" on={section === "skin"} onClick={() => props.onSection("skin")} />
-            <NavItem icon="friends" label="Amigos" soon on={section === "friends"} onClick={() => props.onSection("friends")} />
+            <NavItem icon="friends" label="Amigos" on={section === "friends"} onClick={() => props.onSection("friends")} />
           </div>
           <div className="sb-foot">
             <NavItem icon="settings" label="Configurações" on={section === "settings"} onClick={() => props.onSection("settings")} />
@@ -643,7 +643,7 @@ function Shell(props: {
           {section === "worlds" && <WorldsSection server={current} />}
           {section === "downloads" && <DownloadsSection engine={engine} />}
           {section === "console" && <ConsoleSection engine={engine} />}
-          {section === "friends" && <SoonSection icon="friends" eyebrow="Você" title="Amigos" description="Ver quem está online e entrar junto com um clique. Em breve. Os jogadores online já aparecem no Dashboard." />}
+          {section === "friends" && <FriendsSection engine={engine} />}
           {section === "help" && <SoonSection icon="help" eyebrow="Ajuda" title="Central de ajuda" description="Guias de instalação, solução de problemas e como pedir um convite ao administrador. Em breve." />}
         </main>
       </div>
@@ -762,6 +762,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.14", t: "Amigos com status online, gráfico de armazenamento e uso de CPU/RAM do launcher+jogo no Dashboard, prévia de tema estilo painel e Arquivos em grade" },
   { v: "0.4.13", t: "Configurações com mais categorias (Geral, Java & RAM, Minecraft, Atualizações…), changelog agora em Atualizações e Dashboard reorganizado" },
   { v: "0.4.12", t: "Temas com prévia ao vivo e 5 novos, ícones de arquivo novos, Console em tela própria, Configurações com abas no topo e 'carregar mais' no Conteúdo" },
   { v: "0.4.11", t: "Skin em 3D rotacionável, Conteúdo com mais colunas e filtros horizontais" },
@@ -792,6 +793,13 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
   const stateClass = info?.state === "running" ? "online" : info?.state === "crashed" ? "crashed" : "offline";
   const memPct = stats ? (stats.mem_used / stats.mem_total) * 100 : 0;
   const pcount = info?.players ?? null;
+  const [diskBytes, setDiskBytes] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setDiskBytes(null);
+    invoke<number>("dir_size", { dir: server.dir }).then((b) => { if (alive) setDiskBytes(b); }).catch(() => {});
+    return () => { alive = false; };
+  }, [server.dir]);
 
   return (
     <div className="page">
@@ -829,19 +837,24 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
           <Spark tone="accent" />
         </div>
         <div className="card widget">
-          <div className="wl"><Icon n="cpu" />CPU · seu PC</div>
+          <div className="wl"><Icon n="cpu" />CPU · Aether + jogo</div>
           <div className="wv tnum">{stats ? Math.round(stats.cpu) : "—"}<small>%</small></div>
           <div className="mini-track"><i style={{ width: `${stats ? Math.min(100, stats.cpu) : 0}%` }} /></div>
         </div>
         <div className="card widget">
-          <div className="wl"><Icon n="ram" />RAM · seu PC</div>
-          <div className="wv tnum">{stats ? (stats.mem_used / 1024 ** 3).toFixed(1) : "—"}<small> / {stats ? (stats.mem_total / 1024 ** 3).toFixed(0) : "—"} GB</small></div>
+          <div className="wl"><Icon n="ram" />RAM · Aether + jogo</div>
+          <div className="wv tnum">{stats ? (stats.mem_used / 1024 ** 3).toFixed(1) : "—"}<small> GB</small></div>
           <div className="mini-track"><i style={{ width: `${memPct}%` }} /></div>
         </div>
         <div className="card widget">
           <div className="wl"><Icon n="ping" />Ping</div>
           <div className="wv tnum">{info?.latency_ms != null ? info.latency_ms : "—"}<small> ms</small></div>
           <Spark tone="info" />
+        </div>
+        <div className="card widget">
+          <div className="wl"><Icon n="folder" />Armazenamento</div>
+          <div className="wv tnum">{diskBytes != null ? (diskBytes / 1024 ** 3).toFixed(1) : "—"}<small> GB</small></div>
+          <div className="wl-sub">na pasta do jogo</div>
         </div>
       </div>
 
@@ -1068,7 +1081,7 @@ const GridIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 
 function FilesSection({ server }: { server: Server }) {
   const [tab, setTab] = useState<"files" | "trash">("files");
-  const [view, setView] = useState<"list" | "grid">("list");
+  const [view, setView] = useState<"list" | "grid">("grid");
   const [path, setPath] = useState("");
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [managed, setManaged] = useState<ManagedInfo>({ files: new Set(), dirs: [], online: true });
@@ -1340,6 +1353,41 @@ function ThemeMiniApp({ t }: { t: ThemeTokens }) {
   );
 }
 
+/** Prévia grande no estilo do painel do servidor — sidebar, tiles de CPU/RAM,
+ *  gráfico de barras e selos. Usada só na prévia principal (os cards seguem com ThemeMiniApp). */
+function ThemeMiniDash({ t }: { t: ThemeTokens }) {
+  const soft = hexRgba(t.accent, 0.16);
+  const bars = [
+    { c: t.accent, h: 72 }, { c: t.info, h: 52 }, { c: t.warn, h: 62 },
+    { c: t.danger, h: 38 }, { c: t.accentDim, h: 48 },
+  ];
+  return (
+    <div className="tdash" style={{ background: t.bg, border: `1px solid ${t.border}` }}>
+      <div className="tdash-side" style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}>
+        <div className="tdash-brand" style={{ color: t.text }}><span className="tdash-gem" style={{ background: t.accent }} />Aether</div>
+        <div className="tdash-nav on" style={{ background: soft, color: t.text }}>Visão geral</div>
+        <div className="tdash-nav" style={{ color: t.muted }}>Servidor</div>
+        <div className="tdash-nav" style={{ color: t.muted }}>Config</div>
+      </div>
+      <div className="tdash-main">
+        <div className="tdash-tiles">
+          <div className="tdash-tile" style={{ background: t.surface, border: `1px solid ${t.border}` }}><span style={{ color: t.muted }}>CPU</span><b style={{ color: t.accent }}>42%</b></div>
+          <div className="tdash-tile" style={{ background: t.surface, border: `1px solid ${t.border}` }}><span style={{ color: t.muted }}>RAM</span><b style={{ color: t.info }}>6.1 GB</b></div>
+        </div>
+        <div className="tdash-chart" style={{ background: t.surface, border: `1px solid ${t.border}` }}>
+          <span className="tdash-chart-t" style={{ color: t.muted }}>Mods por loader</span>
+          <div className="tdash-bars">{bars.map((b, i) => <i key={i} style={{ background: b.c, height: `${b.h}%` }} />)}</div>
+        </div>
+        <div className="tdash-badges">
+          <span style={{ background: soft, color: t.accent }}>online</span>
+          <span style={{ background: hexRgba(t.warn, 0.16), color: t.warn }}>aviso</span>
+          <span style={{ background: hexRgba(t.danger, 0.16), color: t.danger }}>erro</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin, iconPack, onIconPack }: {
   server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
   autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
@@ -1463,8 +1511,8 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
         <>
           <div className="setting" style={{ paddingTop: 0 }}>
             <label>Tema</label>
-            <div className="theme-live">
-              <ThemeMiniApp t={shownTheme.tokens} />
+            <div className="theme-live theme-live-dash">
+              <ThemeMiniDash t={shownTheme.tokens} />
               <div className="theme-live-cap">
                 <b>{shownTheme.label}</b>
                 <span>{(hovered ?? preset) === preset ? "tema atual" : "passe o mouse para pré-visualizar"}</span>
@@ -2029,6 +2077,57 @@ function DownloadsSection({ engine }: { engine: Engine }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// =============================================================== Amigos =====
+const FRIENDS_KEY = "aether.launcher.friends";
+function loadFriends(): string[] {
+  try { const v = JSON.parse(localStorage.getItem(FRIENDS_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+
+function FriendsSection({ engine }: { engine: Engine }) {
+  const [friends, setFriends] = useState<string[]>(loadFriends);
+  const [name, setName] = useState("");
+  const onlineNames = new Set((engine.info?.players?.names ?? []).map((n) => n.toLowerCase()));
+
+  function save(next: string[]) { setFriends(next); localStorage.setItem(FRIENDS_KEY, JSON.stringify(next)); }
+  function add() {
+    const n = name.trim();
+    if (!n || friends.some((f) => f.toLowerCase() === n.toLowerCase())) { setName(""); return; }
+    save([...friends, n]); setName("");
+  }
+  const sorted = [...friends].sort((a, b) =>
+    (onlineNames.has(b.toLowerCase()) ? 1 : 0) - (onlineNames.has(a.toLowerCase()) ? 1 : 0) || a.localeCompare(b));
+
+  return (
+    <div className="page">
+      <SectionHeading eyebrow="Você" title="Amigos" />
+      <div className="friend-add">
+        <input value={name} maxLength={16} placeholder="Nome de jogador…" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+        <button className="btn primary" disabled={!name.trim()} onClick={add}>Adicionar amigo</button>
+      </div>
+
+      {friends.length === 0 ? (
+        <EmptyState icon="friends" title="Nenhum amigo ainda" description="Adicione pelo nome de jogador para ver rapidinho quem está online no servidor." />
+      ) : (
+        <div className="friend-list">
+          {sorted.map((f) => {
+            const on = onlineNames.has(f.toLowerCase());
+            return (
+              <div key={f} className="friend-row">
+                <span className={`friend-av ${on ? "on" : ""}`}>{f.charAt(0).toUpperCase()}</span>
+                <span className="friend-name">{f}</span>
+                <span className={`friend-status ${on ? "on" : ""}`}>{on ? "online" : "offline"}</span>
+                <button className="btn ghost mini" onClick={() => save(friends.filter((x) => x !== f))} title="Remover">Remover</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="ctxhint"><Icon n="players" /><span>"Online" mostra quais dos seus amigos estão no <b>{engine.info?.instance_name ?? "servidor"}</b> agora. A lista fica salva neste computador.</span></div>
     </div>
   );
 }

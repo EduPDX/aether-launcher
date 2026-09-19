@@ -408,9 +408,23 @@ fn system_stats(state: tauri::State<SysState>) -> Result<SystemStats, String> {
     let mut sys = state.0.lock().map_err(|e| e.to_string())?;
     sys.refresh_memory();
     sys.refresh_cpu_usage();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    // Uso do launcher + do jogo (o java do jogo é filho direto do launcher),
+    // não da máquina inteira. cpu_usage é por processo; somamos e normalizamos
+    // pelo número de núcleos para ficar na mesma escala do resto (0–100%).
+    let me = sysinfo::Pid::from_u32(std::process::id());
+    let ncpu = sys.cpus().len().max(1) as f32;
+    let mut mem = 0u64;
+    let mut cpu = 0f32;
+    for (pid, p) in sys.processes() {
+        if *pid == me || p.parent() == Some(me) {
+            mem += p.memory();
+            cpu += p.cpu_usage();
+        }
+    }
     Ok(SystemStats {
-        cpu: sys.global_cpu_usage(),
-        mem_used: sys.used_memory(),
+        cpu: (cpu / ncpu).min(100.0),
+        mem_used: mem,
         mem_total: sys.total_memory(),
     })
 }
@@ -435,6 +449,7 @@ pub fn run() {
             files::fs_manifest,
             files::server_mods,
             files::local_worlds,
+            files::dir_size,
             files::fs_list,
             files::fs_read,
             files::fs_write,

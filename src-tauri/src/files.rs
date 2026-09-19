@@ -198,6 +198,29 @@ pub async fn local_worlds(dir: String) -> Result<Vec<WorldEntry>, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Tamanho total (bytes) da pasta do jogo, recursivo — para o gráfico de
+/// consumo de disco. Roda fora da thread de UI porque percorre a árvore toda.
+#[tauri::command]
+pub async fn dir_size(dir: String) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fn walk(path: &Path) -> u64 {
+            let mut total = 0;
+            let Ok(entries) = std::fs::read_dir(path) else { return 0 };
+            for entry in entries.flatten() {
+                match entry.file_type() {
+                    Ok(ft) if ft.is_dir() => total += walk(&entry.path()),
+                    Ok(ft) if ft.is_file() => total += entry.metadata().map(|m| m.len()).unwrap_or(0),
+                    _ => {}
+                }
+            }
+            total
+        }
+        walk(&PathBuf::from(&dir))
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Lista uma pasta (relativa à pasta do jogo). Operação puramente local — sem
 /// rede — porque a navegação é frequente.
 #[tauri::command]
