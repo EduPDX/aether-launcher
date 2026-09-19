@@ -766,6 +766,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.16", t: "Removida a categoria Downloads das Configurações (já está na barra lateral)" },
   { v: "0.4.15", t: "Ícones de arquivo por tipo (e bug da prévia corrigido), botão Atualizar agora, e prévia de tema representando o launcher" },
   { v: "0.4.14", t: "Amigos com status online, gráfico de armazenamento e uso de CPU/RAM do launcher+jogo no Dashboard, prévia de tema estilo painel e Arquivos em grade" },
   { v: "0.4.13", t: "Configurações com mais categorias (Geral, Java & RAM, Minecraft, Atualizações…), changelog agora em Atualizações e Dashboard reorganizado" },
@@ -1448,7 +1449,6 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
     { id: "conta", label: "Conta", icon: "friends" },
     { id: "java", label: "Java & RAM", icon: "ram" },
     { id: "minecraft", label: "Minecraft", icon: "play" },
-    { id: "downloads", label: "Downloads", icon: "download" },
     { id: "interface", label: "Interface & Temas", icon: "content" },
     { id: "performance", label: "Performance", icon: "cpu" },
     { id: "atualizacoes", label: "Atualizações", icon: "refresh" },
@@ -1517,18 +1517,6 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
           <div className="set-row">
             <div className="txt"><h5>Abrir a pasta</h5><p>Ver mods, configs e mundos no explorador de arquivos.</p></div>
             <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
-          </div>
-        </div>
-      )}
-
-      {cat === "downloads" && (
-        <div className="setting" style={{ paddingTop: 0 }}>
-          <div className="set-row">
-            <div className="txt"><h5>Onde ficam os downloads</h5><p>Mods, shaders e texturas baixam para a pasta do jogo (veja em <b>Minecraft ▸ Abrir pasta</b>). O progresso ao vivo aparece na aba <b>Downloads</b>.</p></div>
-          </div>
-          <div className="set-row">
-            <div className="txt"><h5>Limpeza automática</h5><p>Versões antigas de arquivos substituídos vão para uma lixeira interna e são podadas sozinhas — sem acumular espaço em disco.</p></div>
-            <div className="ctl"><span className="pill ok">ativa</span></div>
           </div>
         </div>
       )}
@@ -1626,7 +1614,7 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
   );
 }
 
-type SettingsCat = "geral" | "conta" | "java" | "minecraft" | "downloads" | "interface" | "performance" | "atualizacoes" | "avancado";
+type SettingsCat = "geral" | "conta" | "java" | "minecraft" | "interface" | "performance" | "atualizacoes" | "avancado";
 
 // ================================================================ Skin ======
 /** Boneco 3D da skin, rotacionável com o mouse (arraste). */
