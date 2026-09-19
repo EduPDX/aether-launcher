@@ -240,7 +240,7 @@ function BrandLogo({ size = 24 }: { size?: number }) {
   );
 }
 
-type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping" | "folder" | "file" | "trash" | "lock" | "download" | "mods" | "worlds" | "friends" | "console" | "help" | "bell";
+type IconName = "dashboard" | "content" | "files" | "map" | "servers" | "skin" | "settings" | "cpu" | "ram" | "server" | "play" | "refresh" | "players" | "ping" | "folder" | "file" | "trash" | "lock" | "download" | "mods" | "worlds" | "friends" | "console" | "help" | "bell" | "image" | "archive" | "code" | "script";
 
 function Icon({ n }: { n: IconName }) {
   const p: Record<IconName, ReactElement> = {
@@ -269,6 +269,10 @@ function Icon({ n }: { n: IconName }) {
     console: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3M13 15h4" /></>,
     help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 2-2.5 3.5M12 17h.01" /></>,
     bell: <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a2 2 0 0 0 3.4 0" />,
+    image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
+    archive: <><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" /></>,
+    code: <><path d="M14 2v6h6M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" /><path d="m9.5 12.5-1.5 2 1.5 2M14.5 12.5l1.5 2-1.5 2" /></>,
+    script: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h5M8 12h8M8 16h6" /></>,
   };
   const filled = n === "play";
   return (
@@ -762,6 +766,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.15", t: "Ícones de arquivo por tipo (e bug da prévia corrigido), botão Atualizar agora, e prévia de tema representando o launcher" },
   { v: "0.4.14", t: "Amigos com status online, gráfico de armazenamento e uso de CPU/RAM do launcher+jogo no Dashboard, prévia de tema estilo painel e Arquivos em grade" },
   { v: "0.4.13", t: "Configurações com mais categorias (Geral, Java & RAM, Minecraft, Atualizações…), changelog agora em Atualizações e Dashboard reorganizado" },
   { v: "0.4.12", t: "Temas com prévia ao vivo e 5 novos, ícones de arquivo novos, Console em tela própria, Configurações com abas no topo e 'carregar mais' no Conteúdo" },
@@ -1076,6 +1081,23 @@ function agoLabel(ts: number): string {
   return `há ${Math.floor(s / 86400)} dias`;
 }
 
+/** Ícone e categoria por tipo de arquivo — como no gerenciador do servidor. */
+function fileKind(name: string, isDir: boolean): { icon: IconName; kind: string } {
+  if (isDir) return { icon: "folder", kind: "dir" };
+  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  if (ext === "jar") return { icon: "mods", kind: "jar" };
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "tga"].includes(ext)) return { icon: "image", kind: "image" };
+  if (["zip", "rar", "7z", "gz", "tar"].includes(ext)) return { icon: "archive", kind: "archive" };
+  if (["properties", "cfg", "conf", "ini", "toml"].includes(ext)) return { icon: "settings", kind: "config" };
+  if (["json", "json5", "yml", "yaml", "mcmeta", "xml"].includes(ext)) return { icon: "code", kind: "code" };
+  if (["sh", "bat", "cmd", "ps1"].includes(ext)) return { icon: "script", kind: "script" };
+  return { icon: "file", kind: "file" };
+}
+function FileGlyph({ name, isDir, cls }: { name: string; isDir: boolean; cls: string }) {
+  const fk = fileKind(name, isDir);
+  return <span className={`${cls} ${isDir ? "dir" : ""}`} data-kind={fk.kind}><Icon n={fk.icon} /></span>;
+}
+
 const ListIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>;
 const GridIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>;
 
@@ -1261,7 +1283,7 @@ function FilesSection({ server }: { server: Server }) {
                 return (
                   <div key={e.rel} className="file-row">
                     <button className="file-main" onClick={() => openEntry(e)} disabled={!e.is_dir && !editable}>
-                      <span className={`file-ico ${e.is_dir ? "dir" : ""}`}><Icon n={e.is_dir ? "folder" : "file"} /></span>
+                      <FileGlyph name={e.name} isDir={e.is_dir} cls="file-ico" />
                       <span className="file-name">{e.name}</span>
                       {locked && <span className="badge" title="Sincronizado pelo servidor">servidor</span>}
                       {!e.is_dir && <span className="file-size">{formatBytes(e.size)}</span>}
@@ -1280,7 +1302,7 @@ function FilesSection({ server }: { server: Server }) {
                   <button key={e.rel} className="gtile" disabled={!e.is_dir && !editable} onClick={() => openEntry(e)}>
                     {locked && <span className="glock" title="Sincronizado pelo servidor"><Icon n="lock" /></span>}
                     {!locked && <span className="gdel" title="Mover para a lixeira" onClick={(ev) => { ev.stopPropagation(); doDelete(e); }}><Icon n="trash" /></span>}
-                    <span className={`gi ${e.is_dir ? "dir" : ""}`}><Icon n={e.is_dir ? "folder" : "file"} /></span>
+                    <FileGlyph name={e.name} isDir={e.is_dir} cls="gi" />
                     <span className="gn" title={e.name}>{e.name}</span>
                   </button>
                 );
@@ -1298,7 +1320,7 @@ function FilesSection({ server }: { server: Server }) {
           {trash.length === 0 && <EmptyState icon="trash" title="Tudo em seu lugar" description="Os arquivos removidos aparecem aqui e podem ser restaurados." />}
           {trash.map((t) => (
             <div key={t.id} className="trow">
-              <span className={`ti ${t.is_dir ? "dir" : ""}`}><Icon n={t.is_dir ? "folder" : "file"} /></span>
+              <FileGlyph name={t.name} isDir={t.is_dir} cls="ti" />
               <span className="tn">{t.name}</span>
               <span className="tw">{agoLabel(t.ts)} · de {t.rel.includes("/") ? t.rel.slice(0, t.rel.lastIndexOf("/")) : "raiz"}</span>
               <div className="tacts">
@@ -1314,16 +1336,13 @@ function FilesSection({ server }: { server: Server }) {
 }
 
 // =========================================================== Configurações ==
-const ICON_PACKS: { id: string; label: string }[] = [
-  { id: "classico", label: "Clássico" },
-  { id: "colorido", label: "Coloridos" },
-  { id: "minimalista", label: "Minimalistas" },
-  { id: "windows", label: "Windows" },
-  { id: "neutro", label: "Neutro" },
-  { id: "solido", label: "Sólido" },
-  { id: "contraste", label: "Contraste" },
-  { id: "pastel", label: "Pastel" },
-  { id: "destaque", label: "Destaque" },
+const ICON_PACKS: { id: string; label: string; hint: string }[] = [
+  { id: "classico", label: "Clássico", hint: "Contorno colorido por tipo" },
+  { id: "neutro", label: "Neutro", hint: "Monocromático, sem cor" },
+  { id: "solido", label: "Sólido", hint: "Ícone sobre pastilha colorida" },
+  { id: "contraste", label: "Contraste", hint: "Pastilha preenchida, ícone vazado" },
+  { id: "pastel", label: "Pastel", hint: "Cores suaves, contorno mais fino" },
+  { id: "destaque", label: "Destaque", hint: "Tudo na cor de destaque do tema" },
 ];
 
 /** Mini-launcher renderizado com as cores de um tema — prévia ao vivo. */
@@ -1353,35 +1372,31 @@ function ThemeMiniApp({ t }: { t: ThemeTokens }) {
   );
 }
 
-/** Prévia grande no estilo do painel do servidor — sidebar, tiles de CPU/RAM,
- *  gráfico de barras e selos. Usada só na prévia principal (os cards seguem com ThemeMiniApp). */
+/** Prévia grande do LAUNCHER no tema: sidebar, banner com Jogar e os widgets do
+ *  Dashboard. Usada só na prévia principal (os cards seguem com ThemeMiniApp). */
 function ThemeMiniDash({ t }: { t: ThemeTokens }) {
   const soft = hexRgba(t.accent, 0.16);
-  const bars = [
-    { c: t.accent, h: 72 }, { c: t.info, h: 52 }, { c: t.warn, h: 62 },
-    { c: t.danger, h: 38 }, { c: t.accentDim, h: 48 },
-  ];
+  const tile = (label: string, value: string, color: string) => (
+    <div className="tdash-tile" style={{ background: t.surface, border: `1px solid ${t.border}` }}>
+      <span style={{ color: t.muted }}>{label}</span><b style={{ color }}>{value}</b>
+    </div>
+  );
   return (
     <div className="tdash" style={{ background: t.bg, border: `1px solid ${t.border}` }}>
       <div className="tdash-side" style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}>
         <div className="tdash-brand" style={{ color: t.text }}><span className="tdash-gem" style={{ background: t.accent }} />Aether</div>
-        <div className="tdash-nav on" style={{ background: soft, color: t.text }}>Visão geral</div>
-        <div className="tdash-nav" style={{ color: t.muted }}>Servidor</div>
-        <div className="tdash-nav" style={{ color: t.muted }}>Config</div>
+        <div className="tdash-nav on" style={{ background: soft, color: t.text }}>Jogar</div>
+        <div className="tdash-nav" style={{ color: t.muted }}>Mods</div>
+        <div className="tdash-nav" style={{ color: t.muted }}>Mundos</div>
       </div>
       <div className="tdash-main">
-        <div className="tdash-tiles">
-          <div className="tdash-tile" style={{ background: t.surface, border: `1px solid ${t.border}` }}><span style={{ color: t.muted }}>CPU</span><b style={{ color: t.accent }}>42%</b></div>
-          <div className="tdash-tile" style={{ background: t.surface, border: `1px solid ${t.border}` }}><span style={{ color: t.muted }}>RAM</span><b style={{ color: t.info }}>6.1 GB</b></div>
+        <div className="tdash-banner" style={{ background: `linear-gradient(120deg, ${t.accentDim}, ${t.info})` }}>
+          <span className="tdash-play" style={{ background: "#fff", color: t.accentDim }}>▶</span>
         </div>
-        <div className="tdash-chart" style={{ background: t.surface, border: `1px solid ${t.border}` }}>
-          <span className="tdash-chart-t" style={{ color: t.muted }}>Mods por loader</span>
-          <div className="tdash-bars">{bars.map((b, i) => <i key={i} style={{ background: b.c, height: `${b.h}%` }} />)}</div>
-        </div>
-        <div className="tdash-badges">
-          <span style={{ background: soft, color: t.accent }}>online</span>
-          <span style={{ background: hexRgba(t.warn, 0.16), color: t.warn }}>aviso</span>
-          <span style={{ background: hexRgba(t.danger, 0.16), color: t.danger }}>erro</span>
+        <div className="tdash-tiles tdash-tiles-3">
+          {tile("Jogadores", "3/20", t.accent)}
+          {tile("CPU", "42%", t.info)}
+          {tile("RAM", "6.1 GB", t.text)}
         </div>
       </div>
     </div>
@@ -1400,6 +1415,8 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
   const [updMsg, setUpdMsg] = useState("");
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updating, setUpdating] = useState("");
   useEffect(() => setNick(server.username), [server.username]);
   useEffect(() => { getVersion().then(setVersion).catch(() => {}); }, []);
 
@@ -1408,11 +1425,21 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
     if (typeof chosen === "string") onPatch({ dir: chosen });
   }
   async function checkUpdates() {
-    setChecking(true); setUpdMsg("");
+    setChecking(true); setUpdMsg(""); setUpdate(null);
     try {
       const u = await check();
-      setUpdMsg(u ? `Nova versão ${u.version} disponível — reinicie o launcher para atualizar.` : "Você está na versão mais recente.");
+      setUpdate(u ?? null);
+      setUpdMsg(u ? `Nova versão ${u.version} disponível.` : "Você está na versão mais recente.");
     } catch { setUpdMsg("Não foi possível verificar agora. Tente mais tarde."); } finally { setChecking(false); }
+  }
+  async function installUpdate() {
+    if (!update) return;
+    setUpdating("Baixando…");
+    try {
+      await update.downloadAndInstall(() => setUpdating("Instalando…"));
+      setUpdating("Reiniciando…");
+      await relaunch();
+    } catch (e) { setUpdMsg(`Falha ao atualizar: ${e}`); setUpdating(""); }
   }
   function openGameDir() { void invoke("fs_reveal", { dir: server.dir, rel: "" }).catch(() => {}); }
 
@@ -1497,8 +1524,7 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
       {cat === "downloads" && (
         <div className="setting" style={{ paddingTop: 0 }}>
           <div className="set-row">
-            <div className="txt"><h5>Onde ficam os downloads</h5><p>Mods, shaders e texturas baixam para a pasta do jogo. O progresso ao vivo aparece na aba <b>Downloads</b>.</p></div>
-            <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
+            <div className="txt"><h5>Onde ficam os downloads</h5><p>Mods, shaders e texturas baixam para a pasta do jogo (veja em <b>Minecraft ▸ Abrir pasta</b>). O progresso ao vivo aparece na aba <b>Downloads</b>.</p></div>
           </div>
           <div className="set-row">
             <div className="txt"><h5>Limpeza automática</h5><p>Versões antigas de arquivos substituídos vão para uma lixeira interna e são podadas sozinhas — sem acumular espaço em disco.</p></div>
@@ -1533,8 +1559,15 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
             <div className="iconpack-grid">
               {ICON_PACKS.map((p) => (
                 <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
-                  <span className="ipk-prev"><span className="file-ico dir"><Icon n="folder" /></span><span className="file-ico"><Icon n="file" /></span></span>
-                  {p.label}
+                  <div className="ipk-head"><b>{p.label}</b>{iconPack === p.id && <span className="ipk-check">✓</span>}</div>
+                  <span className="ipk-prev">
+                    <span className="pv-ico dir" data-kind="dir"><Icon n="folder" /></span>
+                    <span className="pv-ico" data-kind="jar"><Icon n="mods" /></span>
+                    <span className="pv-ico" data-kind="config"><Icon n="settings" /></span>
+                    <span className="pv-ico" data-kind="code"><Icon n="code" /></span>
+                    <span className="pv-ico" data-kind="image"><Icon n="image" /></span>
+                  </span>
+                  <span className="ipk-hint">{p.hint}</span>
                 </button>
               ))}
             </div>
@@ -1560,7 +1593,12 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
           <div className="setting" style={{ paddingTop: 0 }}>
             <div className="set-row">
               <div className="txt"><h5>Versão do launcher</h5><p>As atualizações chegam automaticamente. Você também pode verificar agora.</p></div>
-              <div className="ctl row" style={{ alignItems: "center" }}><b className="tnum">{version || "—"}</b><button className="btn" disabled={checking} onClick={checkUpdates}>{checking ? "Verificando…" : "Verificar"}</button></div>
+              <div className="ctl row" style={{ alignItems: "center" }}>
+                <b className="tnum">{version || "—"}</b>
+                {update
+                  ? <button className="btn primary" disabled={!!updating} onClick={installUpdate}>{updating || `Atualizar para ${update.version}`}</button>
+                  : <button className="btn" disabled={checking} onClick={checkUpdates}>{checking ? "Verificando…" : "Verificar"}</button>}
+              </div>
             </div>
             {updMsg && <p className="hint" style={{ marginTop: 4 }}>{updMsg}</p>}
           </div>
@@ -1576,12 +1614,11 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
       {cat === "avancado" && (
         <div className="setting" style={{ paddingTop: 0 }}>
           <div className="set-row">
-            <div className="txt"><h5>Pasta do jogo</h5><p>Abrir a instalação para inspecionar ou editar arquivos manualmente.</p></div>
-            <div className="ctl"><button className="btn" onClick={openGameDir}>Abrir pasta</button></div>
-          </div>
-          <div className="set-row">
             <div className="txt"><h5>Reinstalar Java / Forge</h5><p>Refazer a instalação em caso de arquivos corrompidos chega em breve.</p></div>
             <div className="ctl"><span className="pill mute">em breve</span></div>
+          </div>
+          <div className="set-row">
+            <div className="txt"><h5>Editar arquivos</h5><p>Para inspecionar mods, configs e mundos, use a aba <b>Arquivos</b> ou <b>Minecraft ▸ Abrir pasta</b>.</p></div>
           </div>
         </div>
       )}

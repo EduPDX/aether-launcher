@@ -252,50 +252,55 @@ button.crumb:hover { background: var(--surface-3); color: var(--text); }
 .file-main:disabled { cursor: default; }
 .file-ico { width: 18px; display: grid; place-items: center; color: var(--text-mute); }
 .file-ico svg { width: 17px; height: 17px; }
-.file-ico.dir { color: var(--accent-2); }
+.pv-ico { display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
+.pv-ico svg { width: 18px; height: 18px; }
+
+/* ------ cores por TIPO de arquivo (o pack "Clássico" é este padrão) ------ */
+/* Válido para o gerenciador (.file-ico/.gi/.ti) e para as prévias (.pv-ico). */
+.file-ico[data-kind="dir"], .gi[data-kind="dir"], .ti[data-kind="dir"], .pv-ico[data-kind="dir"] { color: var(--accent-2); }
+.file-ico[data-kind="jar"], .gi[data-kind="jar"], .ti[data-kind="jar"], .pv-ico[data-kind="jar"] { color: #e8a33d; }
+.file-ico[data-kind="image"], .gi[data-kind="image"], .ti[data-kind="image"], .pv-ico[data-kind="image"] { color: #ec4899; }
+.file-ico[data-kind="config"], .gi[data-kind="config"], .ti[data-kind="config"], .pv-ico[data-kind="config"] { color: #34d399; }
+.file-ico[data-kind="code"], .gi[data-kind="code"], .ti[data-kind="code"], .pv-ico[data-kind="code"] { color: #a78bfa; }
+.file-ico[data-kind="archive"], .gi[data-kind="archive"], .ti[data-kind="archive"], .pv-ico[data-kind="archive"] { color: #f59e0b; }
+.file-ico[data-kind="script"], .gi[data-kind="script"], .ti[data-kind="script"], .pv-ico[data-kind="script"] { color: #2dd4bf; }
 
 /* ------------------------------------------------ pacotes de ícones ------ */
-.iconpack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 8px; }
-.ipk { border: 1px solid var(--border); background: var(--surface-2); border-radius: var(--r-md); padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 9px; color: var(--text); font-size: 12px; font-weight: 600; }
+/* Regras globais (:root[data-iconpack]) só alcançam o gerenciador; as prévias
+   usam .pv-ico e .ipk[data-iconpack], então escolher um pack não vaza para os
+   outros cards de prévia. */
+.iconpack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.ipk { border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md); padding: 13px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; color: var(--text); font-size: 12.5px; }
 .ipk:hover { border-color: var(--text-mute); }
 .ipk.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.ipk-prev { display: flex; gap: 10px; align-items: center; min-height: 28px; }
+.ipk-head { display: flex; align-items: center; gap: 8px; width: 100%; font-weight: 700; }
+.ipk-check { margin-left: auto; color: var(--accent); }
+.ipk-prev { display: flex; gap: 12px; align-items: center; min-height: 28px; }
+.ipk-hint { color: var(--text-mute); font-size: 11.5px; font-weight: 500; }
+
 /* neutro — monocromático */
-:root[data-iconpack="neutro"] .file-ico, :root[data-iconpack="neutro"] .file-ico.dir,
-:root[data-iconpack="neutro"] .gi, :root[data-iconpack="neutro"] .gi.dir,
-.ipk[data-iconpack="neutro"] .file-ico, .ipk[data-iconpack="neutro"] .file-ico.dir { color: var(--text-dim); }
+:root[data-iconpack="neutro"] .file-ico, :root[data-iconpack="neutro"] .gi, :root[data-iconpack="neutro"] .ti,
+.ipk[data-iconpack="neutro"] .pv-ico { color: var(--text-dim); }
 /* destaque — tudo no acento */
-:root[data-iconpack="destaque"] .file-ico, :root[data-iconpack="destaque"] .file-ico.dir,
-:root[data-iconpack="destaque"] .gi, :root[data-iconpack="destaque"] .gi.dir,
-.ipk[data-iconpack="destaque"] .file-ico, .ipk[data-iconpack="destaque"] .file-ico.dir { color: var(--accent); }
-/* pastel — contorno fino, cor suave */
-:root[data-iconpack="pastel"] .file-ico svg, :root[data-iconpack="pastel"] .gi svg,
-.ipk[data-iconpack="pastel"] .file-ico svg { stroke-width: 1.5; }
-:root[data-iconpack="pastel"] .file-ico.dir, :root[data-iconpack="pastel"] .gi.dir,
-.ipk[data-iconpack="pastel"] .file-ico.dir { color: var(--accent-2); opacity: 0.72; }
-:root[data-iconpack="pastel"] .file-ico, :root[data-iconpack="pastel"] .gi,
-.ipk[data-iconpack="pastel"] .file-ico { opacity: 0.82; }
-/* solido — ícone sobre pastilha colorida */
-:root[data-iconpack="solido"] .file-ico, .ipk[data-iconpack="solido"] .file-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-4); color: var(--text); }
-:root[data-iconpack="solido"] .file-ico.dir, .ipk[data-iconpack="solido"] .file-ico.dir { background: var(--accent-2); color: var(--accent-ink); }
-:root[data-iconpack="solido"] .file-ico svg, .ipk[data-iconpack="solido"] .file-ico svg { width: 14px; height: 14px; }
-:root[data-iconpack="solido"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-4); }
-:root[data-iconpack="solido"] .gi.dir { background: var(--accent-2); color: var(--accent-ink); }
-/* colorido — cores por tipo, tipo VS Code (pasta âmbar, arquivo azul) */
-:root[data-iconpack="colorido"] .file-ico.dir, :root[data-iconpack="colorido"] .gi.dir, .ipk[data-iconpack="colorido"] .file-ico.dir { color: #e0a54b; }
-:root[data-iconpack="colorido"] .file-ico:not(.dir), :root[data-iconpack="colorido"] .gi:not(.dir), .ipk[data-iconpack="colorido"] .file-ico:not(.dir) { color: #4aa5f0; }
-/* minimalista — traços finos e discretos */
-:root[data-iconpack="minimalista"] .file-ico svg, :root[data-iconpack="minimalista"] .gi svg, .ipk[data-iconpack="minimalista"] .file-ico svg { stroke-width: 1.25; }
-:root[data-iconpack="minimalista"] .file-ico, :root[data-iconpack="minimalista"] .file-ico.dir, :root[data-iconpack="minimalista"] .gi, :root[data-iconpack="minimalista"] .gi.dir, .ipk[data-iconpack="minimalista"] .file-ico, .ipk[data-iconpack="minimalista"] .file-ico.dir { color: var(--text-mute); }
-/* windows — pasta amarela clássica, arquivo azul claro */
-:root[data-iconpack="windows"] .file-ico.dir, :root[data-iconpack="windows"] .gi.dir, .ipk[data-iconpack="windows"] .file-ico.dir { color: #f2c14e; }
-:root[data-iconpack="windows"] .file-ico:not(.dir), :root[data-iconpack="windows"] .gi:not(.dir), .ipk[data-iconpack="windows"] .file-ico:not(.dir) { color: #7fb1e6; }
-/* contraste — pastilha preenchida no acento */
-:root[data-iconpack="contraste"] .file-ico, .ipk[data-iconpack="contraste"] .file-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--surface-3); color: var(--text); }
-:root[data-iconpack="contraste"] .file-ico.dir, .ipk[data-iconpack="contraste"] .file-ico.dir { background: var(--accent); color: var(--accent-ink); }
-:root[data-iconpack="contraste"] .file-ico svg, .ipk[data-iconpack="contraste"] .file-ico svg { width: 14px; height: 14px; }
-:root[data-iconpack="contraste"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-3); }
-:root[data-iconpack="contraste"] .gi.dir { background: var(--accent); color: var(--accent-ink); }
+:root[data-iconpack="destaque"] .file-ico, :root[data-iconpack="destaque"] .gi, :root[data-iconpack="destaque"] .ti,
+.ipk[data-iconpack="destaque"] .pv-ico { color: var(--accent); }
+/* pastel — cores suaves, contorno fino */
+:root[data-iconpack="pastel"] .file-ico svg, :root[data-iconpack="pastel"] .gi svg, :root[data-iconpack="pastel"] .ti svg,
+.ipk[data-iconpack="pastel"] .pv-ico svg { stroke-width: 1.4; }
+:root[data-iconpack="pastel"] .file-ico, :root[data-iconpack="pastel"] .gi, :root[data-iconpack="pastel"] .ti,
+.ipk[data-iconpack="pastel"] .pv-ico { opacity: .78; }
+/* solido — ícone (neutro) sobre pastilha colorida */
+:root[data-iconpack="solido"] .file-ico, .ipk[data-iconpack="solido"] .pv-ico { width: 26px; height: 26px; border-radius: 7px; background: var(--surface-4); color: var(--text); }
+:root[data-iconpack="solido"] .file-ico[data-kind="dir"], .ipk[data-iconpack="solido"] .pv-ico[data-kind="dir"] { background: var(--accent-2); color: var(--accent-ink); }
+:root[data-iconpack="solido"] .file-ico svg, .ipk[data-iconpack="solido"] .pv-ico svg { width: 15px; height: 15px; }
+:root[data-iconpack="solido"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-4); color: var(--text); }
+:root[data-iconpack="solido"] .gi[data-kind="dir"] { background: var(--accent-2); color: var(--accent-ink); }
+/* contraste — pastilha preenchida no acento, ícone vazado */
+:root[data-iconpack="contraste"] .file-ico, .ipk[data-iconpack="contraste"] .pv-ico { width: 26px; height: 26px; border-radius: 7px; background: var(--surface-3); color: var(--text); }
+:root[data-iconpack="contraste"] .file-ico[data-kind="dir"], .ipk[data-iconpack="contraste"] .pv-ico[data-kind="dir"] { background: var(--accent); color: var(--accent-ink); }
+:root[data-iconpack="contraste"] .file-ico svg, .ipk[data-iconpack="contraste"] .pv-ico svg { width: 15px; height: 15px; }
+:root[data-iconpack="contraste"] .gi { width: 46px; height: 46px; border-radius: 11px; background: var(--surface-3); color: var(--text); }
+:root[data-iconpack="contraste"] .gi[data-kind="dir"] { background: var(--accent); color: var(--accent-ink); }
 .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-size { font-size: 11px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .file-row .badge { font-size: 10px; padding: 1px 7px; }

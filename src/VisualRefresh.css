@@ -449,16 +449,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .tdash-gem { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .tdash-nav { font-size: 7.5px; padding: 3px 5px; border-radius: 4px; }
 .tdash-main { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tdash-banner { height: 44%; border-radius: 7px; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px; }
+.tdash-play { width: 15px; height: 15px; border-radius: 5px; display: grid; place-items: center; font-size: 7px; }
 .tdash-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.tdash-tile { border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
-.tdash-tile span { font-size: 7px; text-transform: uppercase; letter-spacing: .04em; }
-.tdash-tile b { font-size: 13px; }
-.tdash-chart { flex: 1; border-radius: 6px; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
-.tdash-chart-t { font-size: 7.5px; }
-.tdash-bars { flex: 1; display: flex; align-items: flex-end; gap: 5px; }
-.tdash-bars i { flex: 1; border-radius: 3px 3px 0 0; display: block; }
-.tdash-badges { display: flex; gap: 5px; }
-.tdash-badges span { font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 100px; }
+.tdash-tiles-3 { grid-template-columns: 1fr 1fr 1fr; }
+.tdash-tile { border-radius: 6px; padding: 6px 7px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.tdash-tile span { font-size: 6.5px; text-transform: uppercase; letter-spacing: .03em; }
+.tdash-tile b { font-size: 11px; white-space: nowrap; }
 
 /* Amigos — lista com status online */
 .friend-add { display: flex; gap: 10px; margin-bottom: 18px; }
