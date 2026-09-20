@@ -766,6 +766,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.17", t: "Prévia dos ícones de arquivo (ícones grandes + lista detalhada) que segue o pacote escolhido, e cores por tipo também na grade de Arquivos" },
   { v: "0.4.16", t: "Removida a categoria Downloads das Configurações (já está na barra lateral)" },
   { v: "0.4.15", t: "Ícones de arquivo por tipo (e bug da prévia corrigido), botão Atualizar agora, e prévia de tema representando o launcher" },
   { v: "0.4.14", t: "Amigos com status online, gráfico de armazenamento e uso de CPU/RAM do launcher+jogo no Dashboard, prévia de tema estilo painel e Arquivos em grade" },
@@ -1404,6 +1405,51 @@ function ThemeMiniDash({ t }: { t: ThemeTokens }) {
   );
 }
 
+/** Prévia dos ícones no pacote ATUAL (usa .gi/.file-ico, que seguem o pack
+ *  global) — como no gerenciador de arquivos do servidor. */
+const ICON_SAMPLE: { name: string; isDir?: boolean; type: string; size: string }[] = [
+  { name: "config", isDir: true, type: "Pasta", size: "—" },
+  { name: "mods", isDir: true, type: "Pasta", size: "—" },
+  { name: "world", isDir: true, type: "Pasta", size: "—" },
+  { name: "sodium-1.20.1.jar", type: "Mod / Java", size: "412 KB" },
+  { name: "server.properties", type: "Configuração", size: "1.2 KB" },
+  { name: "latest.log", type: "Log", size: "88 KB" },
+  { name: "pack.mcmeta", type: "MCMETA", size: "204 B" },
+  { name: "icon.png", type: "Imagem", size: "16 KB" },
+  { name: "backup.zip", type: "Compactado", size: "2.4 GB" },
+  { name: "run.sh", type: "Script", size: "310 B" },
+];
+function IconPackPreview() {
+  return (
+    <div className="ipreview">
+      <div className="ipreview-col">
+        <span className="ipreview-t">Ícones grandes</span>
+        <div className="ipreview-grid">
+          {ICON_SAMPLE.slice(0, 8).map((f) => (
+            <div className="ipreview-tile" key={f.name}>
+              <FileGlyph name={f.name} isDir={!!f.isDir} cls="gi" />
+              <span className="ipreview-name">{f.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="ipreview-col">
+        <span className="ipreview-t">Lista com detalhes</span>
+        <div className="ipreview-table">
+          <div className="ipreview-row head"><span>Nome</span><span>Tipo</span><span>Tamanho</span></div>
+          {ICON_SAMPLE.map((f) => (
+            <div className="ipreview-row" key={f.name}>
+              <span className="ipreview-nm"><FileGlyph name={f.name} isDir={!!f.isDir} cls="file-ico" />{f.name}</span>
+              <span>{f.type}</span>
+              <span className="ipreview-sz">{f.size}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojoin, iconPack, onIconPack }: {
   server: Server; preset: string; onPreset: (p: string) => void; onPatch: (p: Partial<Server>) => void;
   autojoin: boolean; onAutojoin: (v: boolean) => void; iconPack: string; onIconPack: (p: string) => void;
@@ -1544,7 +1590,9 @@ function SettingsSection({ server, preset, onPreset, onPatch, autojoin, onAutojo
           </div>
           <div className="setting">
             <label>Ícones de arquivo</label>
-            <div className="iconpack-grid">
+            <p className="hint" style={{ margin: "0 0 12px" }}>Prévia — como fica no gerenciador de arquivos com o pacote atual.</p>
+            <IconPackPreview />
+            <div className="iconpack-grid" style={{ marginTop: 16 }}>
               {ICON_PACKS.map((p) => (
                 <button key={p.id} className={`ipk ${iconPack === p.id ? "on" : ""}`} aria-pressed={iconPack === p.id} data-iconpack={p.id} onClick={() => onIconPack(p.id)}>
                   <div className="ipk-head"><b>{p.label}</b>{iconPack === p.id && <span className="ipk-check">✓</span>}</div>
