@@ -333,21 +333,12 @@ button.crumb:hover { background: var(--surface-3); color: var(--text); }
 .gtile .gi, .ipreview-tile .gi { display: grid; place-items: center; }
 .gtile .gi svg, .ipreview-tile .gi svg { width: 30px; height: 30px; }
 
-/* Prévia dos ícones — como fica no gerenciador (segue o pacote atual) */
-.ipreview { display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; align-items: start; }
-.ipreview-col { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 14px; min-width: 0; }
-.ipreview-t { display: block; font-size: 11px; color: var(--text-mute); font-weight: 600; margin-bottom: 12px; }
-.ipreview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 10px; }
-.ipreview-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px; border: 1px solid var(--border-soft); border-radius: 10px; text-align: center; min-width: 0; }
-.ipreview-name { font-size: 11px; color: var(--text-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ipreview-table { font-size: 12.5px; }
-.ipreview-row { display: grid; grid-template-columns: 1fr auto 68px; gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--border-soft); }
-.ipreview-row:last-child { border-bottom: none; }
-.ipreview-row.head { color: var(--text-mute); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
-.ipreview-row span:nth-child(2) { color: var(--text-mute); }
-.ipreview-nm { display: flex; align-items: center; gap: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ipreview-sz { text-align: right; color: var(--text-mute); font-size: 11.5px; }
-@media (max-width: 720px) { .ipreview { grid-template-columns: 1fr; } }
+/* Prévia dos ícones — mesmo formato/tamanho do cartão de tema, só a grade */
+.icon-live { align-items: center; }
+.icon-live-grid { width: 340px; max-width: 56%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.ipreview-tile { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 10px 4px; border: 1px solid var(--border-soft); border-radius: 9px; text-align: center; min-width: 0; }
+.ipreview-name { font-size: 10px; color: var(--text-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) { .icon-live-grid { width: 100%; max-width: none; } }
 .gtile .gn { font-size: 12px; font-weight: 500; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gtile .glock svg, .gtile .gdel svg { width: 13px; height: 13px; }
 .gtile .glock { position: absolute; top: 7px; right: 7px; font-size: 10px; color: var(--text-mute); }
