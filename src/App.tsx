@@ -11,7 +11,7 @@ import { SkinViewer } from "skinview3d";
 import "./App.css";
 import "./VisualRefresh.css";
 import { InviteSetup, ServerCover, invitationPatch, type Invitation } from "./InviteSetup";
-import { PlayerRoster, type OnlinePlayers } from "./PlayerRoster";
+import { PlayersGrid, type OnlinePlayers } from "./PlayerRoster";
 
 // ============================================================== tipos =======
 export interface Server {
@@ -867,29 +867,30 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
         </div>
       </div>
 
-      <div className="card server-now">
-        <div className="panel-h"><h4>No servidor agora</h4><span className="eyebrow">{pcount ? `${pcount.online} de ${pcount.max}` : "—"}</span></div>
-        <div className="server-now-body">
-          <div className="online-body">
-            {pcount && pcount.online > 0 ? (
-              pcount.names && pcount.names.length > 0
-                ? <PlayerRoster players={pcount} base={server.server} />
-                : <p className="online-hidden">{pcount.online} {pcount.online === 1 ? "jogador online" : "jogadores online"} — o servidor não divulga os nomes.</p>
-            ) : (
-              <div className="online-none"><Icon n="players" /><span>Ninguém online agora. Clique em <b>Jogar</b> e seja o primeiro.</span></div>
-            )}
+      <div className="card srv-now2">
+        <div className="panel-h"><h4>Servidor</h4><span className="eyebrow">{info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</span></div>
+        <div className="srv-row">
+          <div className="feed-ic"><Icon n="server" /></div>
+          <div className="srv-info">
+            <h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5>
+            <p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}` : "Consultando o servidor…"}</p>
           </div>
-          <div className="server-now-side">
-            <div className="feed-item">
-              <div className="feed-ic"><Icon n="server" /></div>
-              <div><h5>Servidor {info ? (STATE_LABEL[info.state] ?? info.state) : "conectando…"}</h5><p>{info ? `${info.files} arquivos · ${formatBytes(info.total_size)} · canal ${info.channel}.` : "Consultando o servidor…"}</p></div>
-            </div>
-            <div className="feed-actions">
-              <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
-              <button className="btn ghost" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
-            </div>
+          <div className="srv-actions">
+            <button className="btn" disabled={busy} onClick={engine.sync}>Sincronizar</button>
+            <button className="btn ghost" disabled={busy} onClick={engine.check_}><Icon n="refresh" />Verificar</button>
           </div>
         </div>
+      </div>
+
+      <div className="card players-now">
+        <div className="panel-h"><h4>Jogadores online</h4><span className="eyebrow">{pcount ? `${pcount.online} de ${pcount.max}` : "—"}</span></div>
+        {pcount && pcount.online > 0 ? (
+          pcount.names && pcount.names.length > 0
+            ? <PlayersGrid players={pcount} base={server.server} />
+            : <p className="online-hidden">{pcount.online} {pcount.online === 1 ? "jogador online" : "jogadores online"} — o servidor não divulga os nomes.</p>
+        ) : (
+          <div className="online-none"><Icon n="players" /><span>Ninguém online agora. Clique em <b>Jogar</b> e seja o primeiro.</span></div>
+        )}
       </div>
 
       {activity && (

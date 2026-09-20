@@ -433,12 +433,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .console-page .ln .lv.warn { color: var(--warn); }
 
 /* ===== Dashboard — painel "No servidor agora" em largura total (2 colunas) ===== */
-.server-now { margin-top: 14px; }
-.server-now-body { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; }
-.server-now-body .online-body { border-bottom: 0; border-right: 1px solid var(--border-soft); }
-.server-now-side { display: flex; flex-direction: column; }
-.server-now-side .feed-item { border-bottom: 0; flex: 1; }
-@media (max-width: 720px) { .server-now-body { grid-template-columns: 1fr; } .server-now-body .online-body { border-right: 0; border-bottom: 1px solid var(--border-soft); } }
+/* No servidor agora: dois cartões empilhados, tudo na horizontal.
+   1) Servidor: ícone + estado/arquivos + Sincronizar/Verificar em linha.
+   2) Jogadores online: grade de rostos grandes preenchida da esquerda p/ direita. */
+.srv-now2 { margin-top: 14px; }
+.srv-row { display: flex; align-items: center; gap: 13px; padding: 14px 18px; }
+.srv-info { min-width: 0; }
+.srv-info h5 { font-size: 13.5px; font-weight: 620; }
+.srv-info p { margin: 3px 0 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+.srv-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+
+.players-now { margin-top: 14px; }
+.players-now .online-none,
+.players-now .online-hidden { padding: 16px 18px; }
+.pgrid { display: flex; flex-wrap: wrap; gap: 14px 16px; padding: 16px 18px; }
+.pgrid-item { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 56px; }
+.pgrid-name { font-size: 11px; color: var(--text-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phead { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; font-weight: 700; color: var(--accent-ink); background: linear-gradient(135deg, var(--accent), var(--info)); box-shadow: 0 1px 4px rgba(0,0,0,.28); }
+.phead.skin-head { background: var(--surface-3); background-size: 800% 800%; background-position: 14.2857% 14.2857%; background-repeat: no-repeat; image-rendering: pixelated; color: transparent; }
+.pgrid-more { align-self: center; height: 48px; min-width: 48px; padding: 0 10px; border-radius: 12px; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: var(--text-dim); background: var(--surface-3); }
+@media (max-width: 560px) { .srv-row { flex-wrap: wrap; } .srv-actions { margin-left: 0; width: 100%; } .srv-actions .btn { flex: 1; } }
 
 /* Configurações — 9 categorias em abas no topo, podem quebrar linha */
 .settings-tabs { flex-wrap: wrap; }
