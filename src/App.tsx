@@ -766,6 +766,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.20", t: "\"No servidor agora\" virou dois cartões: Servidor (estado, arquivos, Sincronizar/Verificar) em cima e Jogadores online com rostos maiores embaixo, preenchendo da esquerda para a direita" },
   { v: "0.4.19", t: "Rosto (skin) dos jogadores na lista de online, no lugar da letra inicial — cai na inicial se o jogador não tiver skin" },
   { v: "0.4.18", t: "Prévia dos ícones no formato do cartão de tema (só a grade), mais enxuta" },
   { v: "0.4.17", t: "Prévia dos ícones de arquivo (ícones grandes + lista detalhada) que segue o pacote escolhido, e cores por tipo também na grade de Arquivos" },
