@@ -766,6 +766,7 @@ function EmptyState({ icon, title, description }: { icon: IconName; title: strin
 }
 
 const LAUNCHER_CHANGELOG: { v: string; t: string }[] = [
+  { v: "0.4.19", t: "Rosto (skin) dos jogadores na lista de online, no lugar da letra inicial — cai na inicial se o jogador não tiver skin" },
   { v: "0.4.18", t: "Prévia dos ícones no formato do cartão de tema (só a grade), mais enxuta" },
   { v: "0.4.17", t: "Prévia dos ícones de arquivo (ícones grandes + lista detalhada) que segue o pacote escolhido, e cores por tipo também na grade de Arquivos" },
   { v: "0.4.16", t: "Removida a categoria Downloads das Configurações (já está na barra lateral)" },
@@ -872,7 +873,7 @@ function DashboardSection({ server, engine, stats, onConfig }: { server: Server;
           <div className="online-body">
             {pcount && pcount.online > 0 ? (
               pcount.names && pcount.names.length > 0
-                ? <PlayerRoster players={pcount} />
+                ? <PlayerRoster players={pcount} base={server.server} />
                 : <p className="online-hidden">{pcount.online} {pcount.online === 1 ? "jogador online" : "jogadores online"} — o servidor não divulga os nomes.</p>
             ) : (
               <div className="online-none"><Icon n="players" /><span>Ninguém online agora. Clique em <b>Jogar</b> e seja o primeiro.</span></div>

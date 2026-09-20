@@ -107,6 +107,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .roster-av { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--accent-ink); background: linear-gradient(135deg, var(--accent), var(--info)); border: 2px solid var(--surface); margin-left: -8px; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 .roster-av:first-child { margin-left: 0; }
 .roster-av.more { background: var(--surface-3); color: var(--text-dim); font-size: 11px; }
+/* rosto recortado da skin (face 8×8 do PNG 64×64), pixel-art */
+.roster-av.skin-head { background: var(--surface-3); background-size: 800% 800%; background-position: 14.2857% 14.2857%; background-repeat: no-repeat; image-rendering: pixelated; color: transparent; }
 .roster-names { margin-top: 9px; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roster-partial { margin-top: 3px; font-size: 10.5px; color: var(--text-mute); }
 /* dashboard: sparklines + painéis Notícias/Changelog (maquete) */
